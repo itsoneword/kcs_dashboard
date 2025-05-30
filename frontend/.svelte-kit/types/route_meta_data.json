@@ -1,0 +1,13 @@
+{
+	"/": [],
+	"/admin": [],
+	"/coach": [],
+	"/coach/evaluations/[id]": [],
+	"/dashboard": [],
+	"/debug": [],
+	"/evaluations": [],
+	"/evaluations/[id]": [],
+	"/lead": [],
+	"/login": [],
+	"/reports": []
+}
