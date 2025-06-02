@@ -1,374 +1,399 @@
-import { Router, Response, NextFunction } from 'express';
+import { Router, Response, NextFunction, Request, RequestHandler } from 'express';
+import { User, EvaluationStats } from '../types';
 import evaluationService from '../services/evaluationService';
 import engineerService from '../services/engineerService';
-import { AuthRequest, ReportFilters } from '../types';
-import { authenticateToken } from '../middleware/auth';
-import logger from '../utils/logger';
 import Joi from 'joi';
+import logger from '../utils/logger';
+import { authenticateToken } from '../middleware/auth';
+import type { AuthRequest } from '../types';
+import { createHandler } from '../utils/errorHandler';
 
 const router = Router();
 
-// Validation schema for report filters
+interface AuthRequest extends Request {
+    user?: User;
+}
+
+interface ReportFilters {
+    year?: number;
+    quarter?: string;
+    engineer_id?: number;
+    engineer_ids?: number[];
+    start_date?: string;
+    end_date?: string;
+    lead_user_id?: number;
+    coach_user_id?: number;
+    manager_id?: number;
+}
+
+interface MonthlyData {
+    month: string;
+    month_number: number;
+    stats: EvaluationStats;
+}
+
+interface QuarterlyStats {
+    [quarter: string]: EvaluationStats;
+}
+
+interface IndividualStats {
+    [engineerId: number]: EvaluationStats;
+}
+
+interface MonthlyDataMap {
+    [engineerId: number]: MonthlyData[];
+}
+
+// Type guard for AuthRequest
+function isAuthRequest(req: Request): req is AuthRequest {
+    return 'user' in req;
+}
+
+// Helper function to create a typed request handler
+function createHandler<T>(handler: (req: AuthRequest, res: Response<T>, next: NextFunction) => Promise<void>): RequestHandler {
+    return async (req: Request, res: Response, next: NextFunction) => {
+        if (!isAuthRequest(req)) {
+            next(new Error('Invalid request type'));
+            return;
+        }
+        try {
+            await handler(req, res, next);
+        } catch (error) {
+            next(error);
+        }
+    };
+}
+
+// Validation schemas
 const reportFiltersSchema = Joi.object({
-    engineer_id: Joi.number().integer().positive().optional(),
-    engineer_ids: Joi.array().items(Joi.number().integer().positive()).optional(),
-    coach_user_id: Joi.number().integer().positive().optional(),
-    lead_user_id: Joi.number().integer().positive().optional(),
-    start_date: Joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/).optional(),
-    end_date: Joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/).optional(),
-    quarter: Joi.string().valid('Q1', 'Q2', 'Q3', 'Q4').optional(),
-    year: Joi.number().integer().min(2020).max(2030).optional()
+    year: Joi.number().integer().min(2020).max(2025),
+    quarter: Joi.string().valid('Q1', 'Q2', 'Q3', 'Q4'),
+    engineer_id: Joi.number().integer().positive(),
+    engineer_ids: Joi.array().items(Joi.number().integer().positive()),
+    start_date: Joi.date().iso(),
+    end_date: Joi.date().iso(),
+    lead_user_id: Joi.number().integer().positive(),
+    coach_user_id: Joi.number().integer().positive(),
+    manager_id: Joi.number().integer().positive()
 });
 
-// GET /api/reports/stats - Generate evaluation statistics
-router.get('/stats', authenticateToken, async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
-    try {
-        const user = req.user!;
+// GET /api/reports/stats - Get evaluation stats based on filters
+router.get('/stats', authenticateToken, createHandler(async (req: AuthRequest, res: Response, next: NextFunction) => {
+    const user = req.user!;
 
-        // Parse engineer_ids from query parameters safely
-        let engineerIds: number[] = [];
-        if (req.query.engineer_ids) {
-            const engineerIdsParam = req.query.engineer_ids;
-            if (Array.isArray(engineerIdsParam)) {
-                engineerIds = engineerIdsParam
-                    .map(id => parseInt(String(id)))
-                    .filter(id => !isNaN(id));
-            } else {
-                const parsed = parseInt(String(engineerIdsParam));
-                if (!isNaN(parsed)) {
-                    engineerIds = [parsed];
-                }
-            }
-        }
+    // Parse and validate query parameters
+    const filters: ReportFilters = {
+        year: req.query.year ? parseInt(String(req.query.year)) : undefined,
+        quarter: req.query.quarter as string | undefined,
+        engineer_id: req.query.engineer_id ? parseInt(String(req.query.engineer_id)) : undefined,
+        engineer_ids: req.query.engineer_ids ? String(req.query.engineer_ids).split(',').map(id => parseInt(id.trim())) : undefined,
+        start_date: req.query.start_date as string | undefined,
+        end_date: req.query.end_date as string | undefined
+    };
 
-        // Build filters object
-        const filters: ReportFilters = {};
-
-        // Add basic filters
-        if (req.query.engineer_id) {
-            const engineerId = parseInt(String(req.query.engineer_id));
-            if (!isNaN(engineerId)) {
-                filters.engineer_id = engineerId;
-            }
-        }
-
-        if (engineerIds.length > 0) {
-            filters.engineer_ids = engineerIds;
-        }
-
-        if (req.query.coach_user_id) {
-            const coachId = parseInt(String(req.query.coach_user_id));
-            if (!isNaN(coachId)) {
-                filters.coach_user_id = coachId;
-            }
-        }
-
-        if (req.query.lead_user_id) {
-            const leadId = parseInt(String(req.query.lead_user_id));
-            if (!isNaN(leadId)) {
-                filters.lead_user_id = leadId;
-            }
-        }
-
-        if (req.query.start_date) {
-            filters.start_date = String(req.query.start_date);
-        }
-
-        if (req.query.end_date) {
-            filters.end_date = String(req.query.end_date);
-        }
-
-        if (req.query.quarter) {
-            filters.quarter = String(req.query.quarter);
-        }
-
-        if (req.query.year) {
-            const year = parseInt(String(req.query.year));
-            if (!isNaN(year)) {
-                filters.year = year;
-            }
-        }
-
-        // Apply role-based filtering
-        if (!user.is_admin) {
-            if (user.is_lead) {
-                // Lead can only see stats for their engineers
-                filters.lead_user_id = user.id;
-            } else if (user.is_coach) {
-                // Coach can only see their own stats
-                filters.coach_user_id = user.id;
-            } else {
-                res.status(403).json({ error: 'Insufficient permissions' });
-                return;
-            }
-        }
-
-        const stats = evaluationService.generateStats(filters);
-
-        res.json({
-            stats,
-            filters: filters
-        });
-    } catch (error: any) {
-        logger.error('Generate stats error:', error);
-        res.status(500).json({ error: error.message || 'Failed to generate statistics' });
+    // Validate filters
+    const { error } = reportFiltersSchema.validate(filters);
+    if (error) {
+        res.status(400).json({ error: error.details[0].message });
+        return;
     }
-});
 
-// GET /api/reports/my-team - Get stats for current user's team
-router.get('/my-team', authenticateToken, async (req: AuthRequest, res: Response, next: NextFunction) => {
-    try {
-        const user = req.user!;
-
-        if (!user.is_lead && !user.is_admin) {
-            res.status(403).json({ error: 'Lead access required' });
-            return;
-        }
-
-        const filters: ReportFilters = {};
-
-        if (!user.is_admin) {
+    // Apply role-based filtering
+    if (!user.is_admin) {
+        if (user.is_lead) {
             filters.lead_user_id = user.id;
-        }
-
-        // Add date filters from query if provided
-        const { start_date, end_date, year, quarter } = req.query;
-        if (start_date) filters.start_date = start_date as string;
-        if (end_date) filters.end_date = end_date as string;
-        if (year) filters.year = parseInt(year as string);
-        if (quarter) filters.quarter = quarter as string;
-
-        const stats = evaluationService.generateStats(filters);
-
-        res.json({
-            stats,
-            filters
-        });
-    } catch (error: any) {
-        logger.error('Get team stats error:', error);
-        res.status(500).json({ error: error.message || 'Failed to get team statistics' });
-    }
-});
-
-// GET /api/reports/engineer/:id - Get stats for specific engineer
-router.get('/engineer/:id', authenticateToken, async (req: AuthRequest, res: Response, next: NextFunction) => {
-    try {
-        const user = req.user!;
-        const engineerId = parseInt(req.params.id);
-
-        if (isNaN(engineerId)) {
-            res.status(400).json({ error: 'Invalid engineer ID' });
-            return;
-        }
-
-        // Check permissions
-        if (!user.is_admin && !user.is_lead && !user.is_coach) {
-            res.status(403).json({ error: 'Insufficient permissions' });
-            return;
-        }
-
-        const filters: ReportFilters = {
-            engineer_id: engineerId
-        };
-
-        // Add date filters from query if provided
-        const { start_date, end_date, year, quarter } = req.query;
-        if (start_date) filters.start_date = start_date as string;
-        if (end_date) filters.end_date = end_date as string;
-        if (year) filters.year = parseInt(year as string);
-        if (quarter) filters.quarter = quarter as string;
-
-        // Apply role-based filtering (same as main stats endpoint)
-        if (!user.is_admin) {
-            if (user.is_lead) {
-                // Lead can see stats for their engineers
-                filters.lead_user_id = user.id;
-            } else if (user.is_coach) {
-                // Coach can see stats for their assigned engineers  
-                filters.coach_user_id = user.id;
-            } else {
-                res.status(403).json({ error: 'Insufficient permissions' });
-                return;
-            }
-        }
-
-        const stats = evaluationService.generateStats(filters);
-
-        res.json({
-            stats,
-            filters,
-            engineer_id: engineerId
-        });
-    } catch (error: any) {
-        logger.error('Get engineer stats error:', error);
-        res.status(500).json({ error: error.message || 'Failed to get engineer statistics' });
-    }
-});
-
-// GET /api/reports/quarterly - Get quarterly comparison report
-router.get('/quarterly', authenticateToken, async (req: AuthRequest, res: Response, next: NextFunction) => {
-    try {
-        const user = req.user!;
-        const { year } = req.query;
-
-        if (!year) {
-            res.status(400).json({ error: 'Year parameter is required' });
-            return;
-        }
-
-        const reportYear = parseInt(year as string);
-        if (isNaN(reportYear)) {
-            res.status(400).json({ error: 'Invalid year' });
-            return;
-        }
-
-        const quarters = ['Q1', 'Q2', 'Q3', 'Q4'];
-        const quarterlyStats: any = {};
-
-        for (const quarter of quarters) {
-            const filters: ReportFilters = {
-                year: reportYear,
-                quarter: quarter
-            };
-
-            // Apply role-based filtering
-            if (!user.is_admin) {
-                if (user.is_lead) {
-                    filters.lead_user_id = user.id;
-                } else if (user.is_coach) {
-                    filters.coach_user_id = user.id;
-                } else {
-                    res.status(403).json({ error: 'Insufficient permissions' });
-                    return;
-                }
-            }
-
-            quarterlyStats[quarter] = evaluationService.generateStats(filters);
-        }
-
-        res.json({
-            year: reportYear,
-            quarterly_stats: quarterlyStats
-        });
-    } catch (error: any) {
-        logger.error('Get quarterly stats error:', error);
-        res.status(500).json({ error: error.message || 'Failed to get quarterly statistics' });
-    }
-});
-
-// GET /api/reports/evaluations - Get evaluations for specific filters (for quarter drill-down)
-router.get('/evaluations', authenticateToken, async (req: AuthRequest, res: Response, next: NextFunction) => {
-    try {
-        const user = req.user!;
-
-        // Parse engineer_ids from query parameters (they come as strings)
-        const queryParams = { ...req.query };
-        if (queryParams.engineer_ids) {
-            if (Array.isArray(queryParams.engineer_ids)) {
-                queryParams.engineer_ids = queryParams.engineer_ids.map((id: string) => parseInt(id)).filter(id => !isNaN(id));
-            } else {
-                queryParams.engineer_ids = [parseInt(queryParams.engineer_ids as string)].filter(id => !isNaN(id));
-            }
-        }
-
-        // Validate query parameters
-        const { error, value } = reportFiltersSchema.validate(queryParams);
-        if (error) {
-            res.status(400).json({ error: error.details[0].message });
-            return;
-        }
-
-        const filters: ReportFilters = value;
-
-        // Handle engineer_ids from query parameters manually
-        if (req.query.engineer_ids) {
-            const engineerIds = Array.isArray(req.query.engineer_ids)
-                ? req.query.engineer_ids.map(id => parseInt(id as string)).filter(id => !isNaN(id))
-                : [parseInt(req.query.engineer_ids as string)].filter(id => !isNaN(id));
-
-            if (engineerIds.length > 0) {
-                filters.engineer_ids = engineerIds;
-            }
-        }
-
-        // Apply role-based filtering
-        if (!user.is_admin) {
-            if (user.is_lead) {
-                // Lead can only see evaluations for their engineers
-                filters.lead_user_id = user.id;
-            } else if (user.is_coach) {
-                // Coach can only see their own evaluations
-                filters.coach_user_id = user.id;
-            } else {
-                res.status(403).json({ error: 'Insufficient permissions' });
-                return;
-            }
-        }
-
-        const evaluations = evaluationService.getAllEvaluations({
-            engineerId: filters.engineer_id,
-            coachUserId: filters.coach_user_id,
-            leadUserId: filters.lead_user_id,
-            startDate: filters.start_date,
-            endDate: filters.end_date,
-            year: filters.year
-        });
-
-        // Apply quarter filtering if specified
-        let filteredEvaluations = evaluations;
-        if (filters.quarter) {
-            const quarterMonths: Record<string, [number, number]> = {
-                'Q1': [1, 3],
-                'Q2': [4, 6],
-                'Q3': [7, 9],
-                'Q4': [10, 12]
-            };
-
-            if (quarterMonths[filters.quarter]) {
-                const [startMonth, endMonth] = quarterMonths[filters.quarter];
-                filteredEvaluations = evaluations.filter(evaluation => {
-                    const evalDate = new Date(evaluation.evaluation_date);
-                    const month = evalDate.getMonth() + 1; // getMonth() returns 0-11
-                    return month >= startMonth && month <= endMonth;
-                });
-            }
-        }
-
-        res.json({
-            evaluations: filteredEvaluations,
-            filters: filters
-        });
-    } catch (error: any) {
-        logger.error('Get evaluations for reports error:', error);
-        res.status(500).json({ error: error.message || 'Failed to get evaluations' });
-    }
-});
-
-// GET /api/reports/engineers - Get engineers for filtering based on user role
-router.get('/engineers', authenticateToken, async (req: AuthRequest, res: Response, next: NextFunction) => {
-    try {
-        const user = req.user!;
-        let engineers;
-
-        if (user.is_admin) {
-            // Admin can see all engineers
-            engineers = engineerService.getAllEngineers(undefined, true);
-        } else if (user.is_lead) {
-            // Lead can see all engineers for reporting
-            engineers = engineerService.getAllEngineers(undefined, true);
         } else if (user.is_coach) {
-            // Coach can see all engineers for reporting
-            engineers = engineerService.getAllEngineers(undefined, true);
+            filters.coach_user_id = user.id;
+        } else if (user.is_manager) {
+            filters.manager_id = user.id;
         } else {
             res.status(403).json({ error: 'Insufficient permissions' });
             return;
         }
-
-        res.json({ engineers });
-    } catch (error: any) {
-        logger.error('Get engineers for reports error:', error);
-        res.status(500).json({ error: error.message || 'Failed to get engineers' });
     }
-});
+
+    const stats = await evaluationService.generateStats(filters);
+    res.json({ stats });
+}));
+
+// GET /api/reports/quarterly - Get quarterly stats for the specified year
+router.get('/quarterly', authenticateToken, createHandler(async (req: AuthRequest, res: Response, next: NextFunction) => {
+    const user = req.user!;
+    const year = req.query.year ? parseInt(String(req.query.year)) : new Date().getFullYear();
+
+    // For now, we'll use generateStats with quarterly filters
+    const quarterlyStats: Record<string, any> = {};
+    for (const quarter of ['Q1', 'Q2', 'Q3', 'Q4']) {
+        const stats = await evaluationService.generateStats({
+            year,
+            quarter,
+            ...(user.is_lead ? { lead_user_id: user.id } : {}),
+            ...(user.is_coach ? { coach_user_id: user.id } : {}),
+            ...(user.is_manager ? { manager_id: user.id } : {})
+        });
+        quarterlyStats[quarter] = stats;
+    }
+
+    res.json({ quarterly_stats: quarterlyStats });
+}));
+
+// GET /api/reports/monthly - Get monthly stats for the specified filters
+router.get('/monthly', authenticateToken, createHandler(async (req: AuthRequest, res: Response, next: NextFunction) => {
+    const user = req.user!;
+
+    // Parse and validate query parameters
+    const filters: ReportFilters = {
+        year: req.query.year ? parseInt(String(req.query.year)) : undefined,
+        quarter: req.query.quarter as string | undefined,
+        engineer_id: req.query.engineer_id ? parseInt(String(req.query.engineer_id)) : undefined
+    };
+
+    // Validate filters
+    const { error } = reportFiltersSchema.validate(filters);
+    if (error) {
+        res.status(400).json({ error: error.details[0].message });
+        return;
+    }
+
+    // Apply role-based filtering
+    if (!user.is_admin) {
+        if (user.is_lead) {
+            filters.lead_user_id = user.id;
+        } else if (user.is_coach) {
+            filters.coach_user_id = user.id;
+        } else if (user.is_manager) {
+            filters.manager_id = user.id;
+        } else {
+            res.status(403).json({ error: 'Insufficient permissions' });
+            return;
+        }
+    }
+
+    // Get monthly data by generating stats for each month
+    const monthlyData = [];
+    const year = filters.year || new Date().getFullYear();
+
+    for (let month = 1; month <= 12; month++) {
+        const startDate = new Date(year, month - 1, 1).toISOString().split('T')[0];
+        const endDate = new Date(year, month, 0).toISOString().split('T')[0];
+
+        const monthlyStats = await evaluationService.generateStats({
+            ...filters,
+            start_date: startDate,
+            end_date: endDate
+        });
+
+        monthlyData.push({
+            month: new Date(year, month - 1).toLocaleString('default', { month: 'short' }),
+            month_number: month,
+            stats: monthlyStats
+        });
+    }
+
+    res.json({ monthly_data: monthlyData });
+}));
+
+// GET /api/reports/engineers - Get engineers for filtering based on user role
+router.get('/engineers', authenticateToken, createHandler(async (req: AuthRequest, res: Response, next: NextFunction) => {
+    const user = req.user!;
+    let engineers;
+
+    if (user.is_admin) {
+        engineers = await engineerService.getAllEngineers();
+    } else if (user.is_lead) {
+        engineers = await engineerService.getEngineersByLead(user.id);
+    } else if (user.is_coach) {
+        engineers = await engineerService.getEngineersByCoach(user.id);
+    } else if (user.is_manager) {
+        // Allow managers to view engineers; returning all engineers similar to admin for now
+        engineers = await engineerService.getAllEngineers();
+    } else {
+        res.status(403).json({ error: 'Insufficient permissions' });
+        return;
+    }
+
+    res.json({ engineers });
+}));
+
+// POST /api/reports/batch - Get all report data in a single call
+router.post('/batch', authenticateToken, createHandler(async (req: AuthRequest, res: Response, next: NextFunction) => {
+    const user = req.user!;
+
+    // Validate request body
+    const { error, value } = Joi.object({
+        filters: reportFiltersSchema.required(),
+        include_monthly: Joi.boolean().default(true),
+        include_quarterly: Joi.boolean().default(true),
+        include_individual: Joi.boolean().default(true),
+        engineer_ids: Joi.array().items(Joi.number().integer().positive()).optional()
+    }).validate(req.body);
+
+    if (error) {
+        res.status(400).json({ error: error.details[0].message });
+        return;
+    }
+
+    const { filters, include_monthly, include_quarterly, include_individual, engineer_ids } = value;
+
+    // Apply role-based filtering
+    if (!user.is_admin) {
+        if (user.is_lead) {
+            filters.lead_user_id = user.id;
+        } else if (user.is_coach) {
+            filters.coach_user_id = user.id;
+        } else if (user.is_manager) {
+            filters.manager_id = user.id;
+        } else {
+            res.status(403).json({ error: 'Insufficient permissions' });
+            return;
+        }
+    }
+
+    // Get overall stats
+    const overallStats = await evaluationService.generateStats(filters);
+
+    // Get quarterly stats if requested
+    let quarterlyStats = null;
+    if (include_quarterly) {
+        quarterlyStats = {};
+        for (const quarter of ['Q1', 'Q2', 'Q3', 'Q4']) {
+            quarterlyStats[quarter] = await evaluationService.generateStats({
+                ...filters,
+                quarter
+            });
+        }
+    }
+
+    // Get individual stats if requested
+    let individualStats = {};
+    if (include_individual && engineer_ids?.length) {
+        for (const engineerId of engineer_ids) {
+            const engineerFilters = { ...filters, engineer_id: engineerId };
+            const stats = await evaluationService.generateStats(engineerFilters);
+            individualStats[engineerId] = stats;
+        }
+    }
+
+    // Get monthly data if requested
+    let monthlyData = {};
+    if (include_monthly && engineer_ids?.length) {
+        for (const engineerId of engineer_ids) {
+            const monthlyStats = [];
+            const year = filters.year || new Date().getFullYear();
+
+            for (let month = 1; month <= 12; month++) {
+                const startDate = new Date(year, month - 1, 1).toISOString().split('T')[0];
+                const endDate = new Date(year, month, 0).toISOString().split('T')[0];
+
+                const stats = await evaluationService.generateStats({
+                    ...filters,
+                    engineer_id: engineerId,
+                    start_date: startDate,
+                    end_date: endDate
+                });
+
+                monthlyStats.push({
+                    month: new Date(year, month - 1).toLocaleString('default', { month: 'short' }),
+                    month_number: month,
+                    stats
+                });
+            }
+
+            monthlyData[engineerId] = monthlyStats;
+        }
+    }
+
+    res.json({
+        overall_stats: overallStats,
+        quarterly_stats: quarterlyStats,
+        individual_stats: individualStats,
+        monthly_data: monthlyData
+    });
+}));
+
+// Helper to parse engineer IDs from query param
+function parseEngineerIds(ids: string | string[]): number[] {
+    if (Array.isArray(ids)) {
+        return ids.map(id => parseInt(id)).filter(id => !isNaN(id));
+    }
+    return ids.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id));
+}
+
+// Batch stats endpoint
+router.get('/batch-stats', authenticateToken, createHandler(async (req: AuthRequest, res: Response) => {
+    const user = req.user!;
+
+    // Parse filters
+    const filters: ReportFilters = {};
+    const year = parseInt(req.query.year as string);
+    if (!isNaN(year)) filters.year = year;
+
+    if (req.query.quarter) filters.quarter = req.query.quarter as string;
+    if (req.query.start_date) filters.start_date = req.query.start_date as string;
+    if (req.query.end_date) filters.end_date = req.query.end_date as string;
+
+    // Parse engineer IDs
+    const engineerIds = req.query.engineer_ids ? parseEngineerIds(req.query.engineer_ids as string) : [];
+
+    // Get overall stats for all selected engineers
+    const overallStats = await evaluationService.generateStats({
+        ...filters,
+        engineer_ids: engineerIds
+    });
+
+    // Get quarterly stats for the year
+    const quarterlyStats: Record<string, EvaluationStats> = {};
+    for (const quarter of ['Q1', 'Q2', 'Q3', 'Q4']) {
+        quarterlyStats[quarter] = await evaluationService.generateStats({
+            ...filters,
+            year,
+            quarter
+        });
+    }
+
+    // Get individual stats for each engineer
+    const individualStats: Record<string, EvaluationStats> = {};
+    const monthlyData: Record<string, any[]> = {};
+
+    if (engineerIds.length > 0) {
+        // Get all monthly data in one query per engineer
+        for (const engineerId of engineerIds) {
+            // Get individual stats
+            individualStats[engineerId.toString()] = await evaluationService.generateStats({
+                ...filters,
+                engineer_id: engineerId
+            });
+
+            // Get monthly data
+            const monthlyStats = [];
+            for (let month = 1; month <= 12; month++) {
+                const startDate = new Date(year, month - 1, 1);
+                const endDate = new Date(year, month, 0);
+
+                const stats = await evaluationService.generateStats({
+                    year,
+                    engineer_id: engineerId,
+                    start_date: startDate.toISOString().split('T')[0],
+                    end_date: endDate.toISOString().split('T')[0]
+                });
+
+                monthlyStats.push({
+                    month: new Date(0, month - 1).toLocaleString('default', { month: 'short' }),
+                    month_number: month,
+                    stats
+                });
+            }
+
+            monthlyData[engineerId.toString()] = monthlyStats;
+        }
+    }
+
+    res.json({
+        overall_stats: overallStats,
+        quarterly_stats: quarterlyStats,
+        individual_stats: individualStats,
+        monthly_data: monthlyData
+    });
+}));
 
 export default router; 

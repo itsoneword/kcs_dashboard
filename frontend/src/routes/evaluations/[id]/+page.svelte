@@ -415,7 +415,7 @@
                       <input
                         type="text"
                         value={caseEval.case_id || ''}
-                        on:blur={(e) => updateCase(caseEval, 'case_id', e.target.value)}
+                        on:blur={(e) => updateCase(caseEval, 'case_id', (e.target as HTMLInputElement).value)}
                         class="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                         placeholder="Enter case ID"
                       />
@@ -431,7 +431,7 @@
                     <input
                       type="checkbox"
                       checked={caseEval.kb_potential || false}
-                      on:change={(e) => updateCase(caseEval, 'kb_potential', e.target.checked)}
+                      on:change={(e) => updateCase(caseEval, 'kb_potential', (e.target as HTMLInputElement).checked)}
                       disabled={!isEditing || !canEdit()}
                       class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded {!isEditing || !canEdit() ? 'opacity-75' : ''}"
                     />
@@ -442,7 +442,7 @@
                     <input
                       type="checkbox"
                       checked={caseEval.article_linked || false}
-                      on:change={(e) => updateCase(caseEval, 'article_linked', e.target.checked)}
+                      on:change={(e) => updateCase(caseEval, 'article_linked', (e.target as HTMLInputElement).checked)}
                       disabled={!isEditing || !canEdit()}
                       class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded {!isEditing || !canEdit() ? 'opacity-75' : ''}"
                     />
@@ -453,7 +453,7 @@
                     <input
                       type="checkbox"
                       checked={caseEval.article_improved || false}
-                      on:change={(e) => updateCase(caseEval, 'article_improved', e.target.checked)}
+                      on:change={(e) => updateCase(caseEval, 'article_improved', (e.target as HTMLInputElement).checked)}
                       disabled={!isEditing || !canEdit()}
                       class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded {!isEditing || !canEdit() ? 'opacity-75' : ''}"
                     />
@@ -464,7 +464,7 @@
                     <input
                       type="checkbox"
                       checked={caseEval.improvement_opportunity || false}
-                      on:change={(e) => updateCase(caseEval, 'improvement_opportunity', e.target.checked)}
+                      on:change={(e) => updateCase(caseEval, 'improvement_opportunity', (e.target as HTMLInputElement).checked)}
                       disabled={!isEditing || !canEdit()}
                       class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded {!isEditing || !canEdit() ? 'opacity-75' : ''}"
                     />
@@ -475,7 +475,7 @@
                     <input
                       type="checkbox"
                       checked={caseEval.article_created || false}
-                      on:change={(e) => updateCase(caseEval, 'article_created', e.target.checked)}
+                      on:change={(e) => updateCase(caseEval, 'article_created', (e.target as HTMLInputElement).checked)}
                       disabled={!isEditing || !canEdit()}
                       class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded {!isEditing || !canEdit() ? 'opacity-75' : ''}"
                     />
@@ -486,7 +486,7 @@
                     <input
                       type="checkbox"
                       checked={caseEval.create_opportunity || false}
-                      on:change={(e) => updateCase(caseEval, 'create_opportunity', e.target.checked)}
+                      on:change={(e) => updateCase(caseEval, 'create_opportunity', (e.target as HTMLInputElement).checked)}
                       disabled={!isEditing || !canEdit()}
                       class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded {!isEditing || !canEdit() ? 'opacity-75' : ''}"
                     />
@@ -497,7 +497,7 @@
                     <input
                       type="checkbox"
                       checked={caseEval.relevant_link || false}
-                      on:change={(e) => updateCase(caseEval, 'relevant_link', e.target.checked)}
+                      on:change={(e) => updateCase(caseEval, 'relevant_link', (e.target as HTMLInputElement).checked)}
                       disabled={!isEditing || !canEdit()}
                       class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded {!isEditing || !canEdit() ? 'opacity-75' : ''}"
                     />
@@ -508,7 +508,7 @@
                     {#if isEditing && canEdit()}
                       <textarea
                         value={caseEval.notes || ''}
-                        on:blur={(e) => updateCase(caseEval, 'notes', e.target.value)}
+                        on:blur={(e) => updateCase(caseEval, 'notes', (e.target as HTMLTextAreaElement).value)}
                         class="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                         rows="2"
                         placeholder="Enter notes"

@@ -4,6 +4,8 @@ import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
 import path from 'path';
+import swaggerUi from 'swagger-ui-express';
+import swaggerDocument from '../swagger.json';
 
 import logger from './utils/logger';
 import databaseManager from './database/database';
@@ -42,14 +44,27 @@ app.use(cors({
 // General rate limiting - more lenient
 const generalLimiter = rateLimit({
     windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '30000'), // 30 seconds
-    max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '1000'), // Increased drastically for debugging
-    message: 'Too many requests from this IP, please try again later.',
+    max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '5000'), // Increased drastically for debugging
     standardHeaders: true,
     legacyHeaders: false,
-    skip: (req) => {
-        // Skip rate limiting for auth routes - they have their own limiter
-        return req.path.startsWith('/api/auth');
-    }
+    // For development, use a simpler key generator that's more reliable
+    keyGenerator: (req) => {
+        return 'global_limit'; // Use a single bucket for all requests in development
+    },
+    skip: (req, res) => process.env.NODE_ENV === 'development', // Skip rate limiting in development
+});
+
+// Reports rate limiting - even more lenient
+const reportsLimiter = rateLimit({
+    windowMs: 60 * 1000, // 1 minute
+    max: 10000, // Allow many more requests for reports during development
+    standardHeaders: true,
+    legacyHeaders: false,
+    // For development, use a simpler key generator that's more reliable
+    keyGenerator: (req) => {
+        return 'reports_limit'; // Use a single bucket for all reports requests in development
+    },
+    skip: (req, res) => process.env.NODE_ENV === 'development', // Skip rate limiting in development
 });
 
 // Specific rate limiter for authentication routes
@@ -67,14 +82,21 @@ const authLimiter = rateLimit({
 
 // Lenient rate limiter for dashboard routes
 const dashboardLimiter = rateLimit({
-    windowMs: 15 * 60 * 100, // 1.5 minutes
-    max: 1000, // Allow 10000 dashboard requests per 15 minutes per IP (very high for debugging)
+    windowMs: 1.5 * 60 * 1000, // 1.5 minutes (fixed calculation)
+    max: 1000, // Allow 1000 dashboard requests per 1.5 minutes
     message: { error: 'Too many requests. Please wait a moment and try again.' },
     standardHeaders: true,
     legacyHeaders: false,
+    // For development, use a simpler key generator that's more reliable
+    keyGenerator: (req) => {
+        return 'dashboard_limit'; // Use a single bucket for all dashboard requests in development
+    },
+    skip: (req, res) => process.env.NODE_ENV === 'development', // Skip rate limiting in development
 });
 
-app.use(generalLimiter);
+// Apply rate limiting - general limiter first, then more specific ones
+app.use('/api', generalLimiter);
+app.use('/api/reports', reportsLimiter);
 
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));
@@ -100,6 +122,9 @@ app.use('/api/evaluations', evaluationRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/dashboard', dashboardLimiter, dashboardRoutes);
 app.use('/api/admin', adminRoutes);
+
+// Serve Swagger UI
+app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
 // 404 handler
 app.use('*', (req, res) => {

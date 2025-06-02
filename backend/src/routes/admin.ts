@@ -1,10 +1,12 @@
-import express, { Response } from 'express';
+import express, { Request, Response, NextFunction } from 'express';
 import fs from 'fs';
 import path from 'path';
-import { authenticateToken, requireAdmin } from '../middleware/auth';
+import Joi from 'joi';
+import { authenticateToken, requireAdmin, requireAnyRole } from '../middleware/auth';
 import { AuthRequest } from '../types';
 import databaseManager from '../database/database';
 import logger from '../utils/logger';
+import managerService from '../services/managerService';
 
 const router = express.Router();
 
@@ -34,12 +36,12 @@ router.get('/database/status', authenticateToken, requireAdmin, (req: AuthReques
         });
     } catch (error) {
         logger.error('Error getting database status:', error);
-        res.status(500).json({ error: 'Failed to get database status' });
+        next(error);
     }
 });
 
 // POST /api/admin/database/backup - Create database backup
-router.post('/database/backup', authenticateToken, requireAdmin, async (req: AuthRequest, res: Response) => {
+router.post('/database/backup', authenticateToken, requireAdmin, async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
         const backupDir = path.join(__dirname, '../../backups');
@@ -66,17 +68,17 @@ router.post('/database/backup', authenticateToken, requireAdmin, async (req: Aut
         });
     } catch (error) {
         logger.error('Error creating database backup:', error);
-        res.status(500).json({ error: 'Failed to create database backup' });
+        next(error);
     }
 });
 
 // GET /api/admin/database/backups - List available backups
-router.get('/database/backups', authenticateToken, requireAdmin, (req: AuthRequest, res: Response) => {
+router.get('/database/backups', authenticateToken, requireAdmin, async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
         const backupDir = path.join(__dirname, '../../backups');
 
         if (!fs.existsSync(backupDir)) {
-            return res.json({ backups: [] });
+            res.json({ backups: [] });
         }
 
         const files = fs.readdirSync(backupDir)
@@ -96,12 +98,12 @@ router.get('/database/backups', authenticateToken, requireAdmin, (req: AuthReque
         res.json({ backups: files });
     } catch (error) {
         logger.error('Error listing database backups:', error);
-        res.status(500).json({ error: 'Failed to list database backups' });
+        next(error);
     }
 });
 
 // GET /api/admin/database/schema - Get current schema information
-router.get('/database/schema', authenticateToken, requireAdmin, (req: AuthRequest, res: Response) => {
+router.get('/database/schema', authenticateToken, requireAdmin, async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
         const db = databaseManager.getDatabase();
 
@@ -137,12 +139,12 @@ router.get('/database/schema', authenticateToken, requireAdmin, (req: AuthReques
         });
     } catch (error) {
         logger.error('Error getting database schema:', error);
-        res.status(500).json({ error: 'Failed to get database schema' });
+        next(error);
     }
 });
 
 // GET /api/admin/database/migrations - Get available migration files
-router.get('/database/migrations', authenticateToken, requireAdmin, (req: AuthRequest, res: Response) => {
+router.get('/database/migrations', authenticateToken, requireAdmin, async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
         const migrationsDir = path.join(__dirname, '../database/migrations');
         const schemaPath = path.join(__dirname, '../database/schema.sql');
@@ -188,17 +190,17 @@ router.get('/database/migrations', authenticateToken, requireAdmin, (req: AuthRe
         res.json({ migrations });
     } catch (error) {
         logger.error('Error getting migration files:', error);
-        res.status(500).json({ error: 'Failed to get migration files' });
+        next(error);
     }
 });
 
 // POST /api/admin/database/execute-sql - Execute SQL command (dangerous - admin only)
-router.post('/database/execute-sql', authenticateToken, requireAdmin, (req: AuthRequest, res: Response) => {
+router.post('/database/execute-sql', authenticateToken, requireAdmin, async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
         const { sql } = req.body;
 
         if (!sql || typeof sql !== 'string') {
-            return res.status(400).json({ error: 'SQL query is required' });
+            res.status(400).json({ error: 'SQL query is required' });
         }
 
         // Basic safety checks
@@ -208,7 +210,7 @@ router.post('/database/execute-sql', authenticateToken, requireAdmin, (req: Auth
         const isDangerous = dangerousKeywords.some(keyword => upperSQL.includes(keyword));
 
         if (isDangerous && !req.body.confirmDangerous) {
-            return res.status(400).json({
+            res.status(400).json({
                 error: 'This SQL contains potentially dangerous operations. Please confirm.',
                 requiresConfirmation: true
             });
@@ -239,24 +241,23 @@ router.post('/database/execute-sql', authenticateToken, requireAdmin, (req: Auth
         });
     } catch (error) {
         logger.error('Error executing SQL:', error);
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        res.status(500).json({ error: `SQL execution failed: ${errorMessage}` });
+        next(error);
     }
 });
 
 // POST /api/admin/database/change-db - Change the active database file
-router.post('/database/change-db', authenticateToken, requireAdmin, (req: AuthRequest, res: Response) => {
+router.post('/database/change-db', authenticateToken, requireAdmin, async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
         const { newDbPath } = req.body;
 
         if (!newDbPath || typeof newDbPath !== 'string') {
-            return res.status(400).json({ error: 'newDbPath is required and must be a string.' });
+            res.status(400).json({ error: 'newDbPath is required and must be a string.' });
         }
 
         // Basic validation: check if path seems plausible (e.g., ends with .db)
         // More robust validation might be needed depending on security requirements
         if (!newDbPath.endsWith('.db') && !newDbPath.endsWith('.sqlite') && !newDbPath.endsWith('.sqlite3')) {
-            return res.status(400).json({ error: 'Invalid database file extension. Must be .db, .sqlite, or .sqlite3.' });
+            res.status(400).json({ error: 'Invalid database file extension. Must be .db, .sqlite, or .sqlite3.' });
         }
 
         databaseManager.updateDatabasePath(newDbPath);
@@ -285,12 +286,120 @@ router.post('/database/change-db', authenticateToken, requireAdmin, (req: AuthRe
             lastModified,
             timestamp: new Date().toISOString()
         });
-
     } catch (error) {
         logger.error('Error changing database path:', error);
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error while changing database path';
-        res.status(500).json({ error: `Failed to change database: ${errorMessage}` });
+        next(error);
     }
 });
 
-export default router; 
+// Validation schema for manager assignment
+const managerAssignmentSchema = Joi.object({
+    manager_id: Joi.number().integer().required(),
+    assigned_to: Joi.number().integer().required()
+});
+
+// GET /api/admin/managers/assignments - Get all manager assignments (admin only)
+router.get('/managers/assignments', authenticateToken, requireAdmin, async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+        const assignments = managerService.getAllManagerAssignments();
+        res.json({ assignments });
+    } catch (error: any) {
+        logger.error('Error getting manager assignments:', error);
+        next(error);
+    }
+});
+
+// GET /api/admin/managers/:id/users - Get all users assigned to a manager (admin and manager access)
+router.get('/managers/:id/users', authenticateToken, requireAnyRole(['admin', 'manager']), async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+        const managerId = parseInt(req.params.id);
+        if (isNaN(managerId)) {
+            return res.status(400).json({ error: 'Invalid manager ID' });
+        }
+
+        // If not admin, only allow managers to see their own assigned users
+        if (!req.user!.is_admin && req.user!.id !== managerId) {
+            return res.status(403).json({ error: 'Access denied: You can only view your own assigned users' });
+        }
+
+        const users = managerService.getUsersForManager(managerId);
+        res.json({ users });
+    } catch (error: any) {
+        logger.error('Error getting users for manager:', error);
+        next(error);
+    }
+});
+
+// GET /api/admin/users/:id/manager - Get the manager for a user (admin and manager access)
+router.get('/users/:id/manager', authenticateToken, requireAnyRole(['admin', 'manager']), async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+        const userId = parseInt(req.params.id);
+        if (isNaN(userId)) {
+            return res.status(400).json({ error: 'Invalid user ID' });
+        }
+
+        const manager = managerService.getManagerForUser(userId);
+        res.json({ manager });
+    } catch (error: any) {
+        logger.error('Error getting manager for user:', error);
+        next(error);
+    }
+});
+
+// POST /api/admin/managers/assign - Assign a manager to a user (admin and manager access)
+router.post('/managers/assign', authenticateToken, requireAnyRole(['admin', 'manager']), async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+        const { error, value } = managerAssignmentSchema.validate(req.body);
+        if (error) {
+            res.status(400).json({ error: error.details[0].message });
+            return;
+        }
+
+        // If not admin, managers can only assign themselves
+        if (!req.user!.is_admin && req.user!.id !== value.manager_id) {
+            res.status(403).json({ error: 'Access denied: You can only assign yourself as a manager' });
+            return;
+        }
+
+        const assignment = await managerService.assignManager(value.manager_id, value.assigned_to);
+        res.status(201).json({ 
+            message: 'Manager assigned successfully',
+            assignment 
+        });
+    } catch (error: any) {
+        logger.error('Error assigning manager:', error);
+        next(error);
+    }
+});
+
+// POST /api/admin/managers/remove - Remove a manager assignment (admin and manager access)
+router.post('/managers/remove', authenticateToken, requireAnyRole(['admin', 'manager']), async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+        const { error, value } = managerAssignmentSchema.validate(req.body);
+        if (error) {
+            res.status(400).json({ error: error.details[0].message });
+            return;
+        }
+
+        // If not admin, managers can only remove themselves
+        if (!req.user!.is_admin && req.user!.id !== value.manager_id) {
+            res.status(403).json({ error: 'Access denied: You can only remove yourself as a manager' });
+            return;
+        }
+
+        await managerService.removeManager(value.manager_id, value.assigned_to);
+        res.json({ message: 'Manager assignment removed successfully' });
+    } catch (error: any) {
+        logger.error('Error removing manager assignment:', error);
+        next(error);
+    }
+});
+
+// Error handler middleware for this router
+router.use((err: any, req: Request, res: Response, next: NextFunction) => {
+    logger.error('Admin route error:', err);
+    const errorMessage = err instanceof Error ? err.message : 'Internal Server Error';
+    res.status(500).json({ error: errorMessage });
+});
+
+export default router;

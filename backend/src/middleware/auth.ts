@@ -28,7 +28,7 @@ export const requireAdmin = (req: AuthRequest, res: Response, next: NextFunction
         return res.status(401).json({ error: 'Authentication required' });
     }
 
-    if (!req.user.is_admin) {
+    if (!req.user.is_admin && !req.user.is_manager) {
         return res.status(403).json({ error: 'Admin access required' });
     }
 
@@ -76,6 +76,8 @@ export const requireAnyRole = (roles: string[]) => {
                     return req.user!.is_lead;
                 case 'coach':
                     return req.user!.is_coach;
+                case 'manager':
+                    return req.user!.is_manager;
                 default:
                     return false;
             }

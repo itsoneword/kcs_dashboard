@@ -1,6 +1,7 @@
 import axios, { type AxiosInstance, type AxiosResponse } from 'axios';
 import { browser } from '$app/environment';
 import { env } from '$env/dynamic/public';
+import { apiCounter } from './stores/apiCounter';
 import type {
     User,
     AuthResponse,
@@ -22,7 +23,8 @@ import type {
     DashboardOverview,
     ExcelImportPreview,
     ExcelImportResult,
-    ExcelImportRequest
+    ExcelImportRequest,
+    ManagerAssignment
 } from './types';
 
 class ApiService {
@@ -40,13 +42,16 @@ class ApiService {
             },
         });
 
-        // Add request interceptor to include auth token
+        // Add request interceptor to include auth token and count API calls
         this.api.interceptors.request.use((config) => {
             if (browser) {
                 const token = localStorage.getItem('auth_token');
                 if (token) {
                     config.headers.Authorization = `Bearer ${token}`;
                 }
+                // Count API call
+                const route = `${config.method?.toUpperCase()} ${config.url}`;
+                apiCounter.increment(route);
             }
             return config;
         });
@@ -68,7 +73,12 @@ class ApiService {
                     if (browser) {
                         localStorage.removeItem('auth_token');
                         localStorage.removeItem('user');
-                        window.location.href = '/login';
+
+                        // Prevent infinite redirects - only redirect if not already on login page
+                        const currentPath = window.location.pathname;
+                        if (currentPath !== '/login') {
+                            window.location.href = '/login';
+                        }
                     }
                 }
                 return Promise.reject(error);
@@ -127,7 +137,42 @@ class ApiService {
     }
 
     async deleteUser(userId: number): Promise<{ message: string }> {
-        const response: AxiosResponse<{ message: string }> = await this.api.delete(`/auth/users/${userId}`);
+        const response = await this.api.delete(`/admin/users/${userId}`);
+        return response.data;
+    }
+
+    // Add changeUserPassword method to API service
+    async changeUserPassword(userId: number, password: string): Promise<{ message: string }> {
+        const response = await this.api.post(
+            `/auth/users/${userId}/password`,
+            { newPassword: password }
+        );
+        return response.data;
+    }
+
+    // Manager assignment methods
+    async getAllManagerAssignments(): Promise<{ assignments: ManagerAssignment[] }> {
+        const response = await this.api.get('/admin/managers/assignments');
+        return response.data;
+    }
+
+    async getUsersForManager(managerId: number): Promise<{ users: User[] }> {
+        const response = await this.api.get(`/admin/managers/${managerId}/users`);
+        return response.data;
+    }
+
+    async getManagerForUser(userId: number): Promise<{ manager: User | null }> {
+        const response = await this.api.get(`/admin/users/${userId}/manager`);
+        return response.data;
+    }
+
+    async assignManagerToUser(managerId: number, userId: number): Promise<{ message: string }> {
+        const response = await this.api.post(`/admin/managers/assign`, { manager_id: managerId, assigned_to: userId });
+        return response.data;
+    }
+
+    async removeManagerFromUser(managerId: number, userId: number): Promise<{ message: string }> {
+        const response = await this.api.post(`/admin/managers/remove`, { manager_id: managerId, assigned_to: userId });
         return response.data;
     }
 
@@ -222,18 +267,33 @@ class ApiService {
         engineer_id?: number;
         coach_user_id?: number;
         lead_user_id?: number;
+        engineer_ids?: number[];
+        coach_user_ids?: number[];
+        lead_user_ids?: number[];
         start_date?: string;
         end_date?: string;
         year?: number;
+        years?: number[];
         month?: number;
+        months?: number[];
     }): Promise<{ evaluations: Evaluation[] }> {
         const params = new URLSearchParams();
+
+        // support array filters first
+        if (filters?.engineer_ids?.length) filters.engineer_ids.forEach(id => params.append('engineer_ids', id.toString()));
+        if (filters?.coach_user_ids?.length) filters.coach_user_ids.forEach(id => params.append('coach_user_ids', id.toString()));
+        if (filters?.lead_user_ids?.length) filters.lead_user_ids.forEach(id => params.append('lead_user_ids', id.toString()));
+        // backward-compatible single values
         if (filters?.engineer_id) params.append('engineer_id', filters.engineer_id.toString());
         if (filters?.coach_user_id) params.append('coach_user_id', filters.coach_user_id.toString());
         if (filters?.lead_user_id) params.append('lead_user_id', filters.lead_user_id.toString());
+
         if (filters?.start_date) params.append('start_date', filters.start_date);
         if (filters?.end_date) params.append('end_date', filters.end_date);
+        // support array and single year/month
+        if (filters?.years?.length) filters.years.forEach(y => params.append('years', y.toString()));
         if (filters?.year) params.append('year', filters.year.toString());
+        if (filters?.months?.length) filters.months.forEach(m => params.append('months', m.toString()));
         if (filters?.month) params.append('month', filters.month.toString());
 
         const queryString = params.toString();
@@ -357,6 +417,25 @@ class ApiService {
         const url = queryString ? `/reports/evaluations?${queryString}` : '/reports/evaluations';
 
         const response: AxiosResponse<{ evaluations: Evaluation[]; filters: ReportFilters }> = await this.api.get(url);
+        return response.data;
+    }
+
+    async getBatchStats(filters: ReportFilters & { engineer_ids?: number[] }): Promise<{
+        overall_stats: EvaluationStats;
+        quarterly_stats: Record<string, EvaluationStats>;
+        individual_stats: Record<string, EvaluationStats>;
+        monthly_data: Record<string, any[]>;
+    }> {
+        const params = new URLSearchParams();
+        if (filters.year) params.append('year', filters.year.toString());
+        if (filters.quarter) params.append('quarter', filters.quarter);
+        if (filters.start_date) params.append('start_date', filters.start_date);
+        if (filters.end_date) params.append('end_date', filters.end_date);
+        if (filters.engineer_ids?.length) {
+            params.append('engineer_ids', filters.engineer_ids.join(','));
+        }
+
+        const response = await this.api.get(`/reports/batch-stats?${params.toString()}`);
         return response.data;
     }
 

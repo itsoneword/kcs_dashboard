@@ -94,7 +94,10 @@ export const logUserAction = {
         auditLog('ASSIGNMENT_CREATE', leadId, 'assignment', engineerId, { coachId }),
 
     assignmentEnd: (leadId: number, assignmentId: number, engineerId: number, coachId: number) =>
-        auditLog('ASSIGNMENT_END', leadId, 'assignment', assignmentId, { engineerId, coachId })
+        auditLog('ASSIGNMENT_END', leadId, 'assignment', assignmentId, { engineerId, coachId }),
+
+    passwordChange: (userId: number, targetUserId: number) =>
+        auditLog('PASSWORD_CHANGE', userId, 'user', targetUserId),
 };
 
 export default logger; 

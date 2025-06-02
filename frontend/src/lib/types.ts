@@ -6,9 +6,43 @@ export interface User {
     is_coach: boolean;
     is_lead: boolean;
     is_admin: boolean;
+    is_manager: boolean;
     created_at: string;
     updated_at: string;
     deleted_at?: string;
+    manager_id?: number;
+    manager_name?: string;
+    has_manager?: boolean;
+    managed_by_current_user?: boolean;
+}
+
+export type UserRole = 'coach' | 'lead' | 'manager';
+
+export interface RoleOption {
+    value: UserRole;
+    label: string;
+}
+
+export interface LoginRequest {
+    email: string;
+    password: string;
+}
+
+export interface RegisterRequest {
+    email: string;
+    password: string;
+    name: string;
+    role: UserRole;
+}
+
+export interface AuthResponse {
+    token: string;
+    user: User;
+}
+
+export interface ApiError {
+    error: string;
+    status: number;
 }
 
 export interface Engineer {
@@ -66,17 +100,6 @@ export interface CaseEvaluation {
     deleted_at?: string;
 }
 
-export interface LoginRequest {
-    email: string;
-    password: string;
-}
-
-export interface RegisterRequest {
-    email: string;
-    password: string;
-    name: string;
-}
-
 export interface AuthResponse {
     message: string;
     user: User;
@@ -91,6 +114,7 @@ export interface UpdateUserRolesRequest {
     is_coach?: boolean;
     is_lead?: boolean;
     is_admin?: boolean;
+    is_manager?: boolean;
 }
 
 export interface CreateEngineerRequest {
@@ -151,6 +175,8 @@ export interface EvaluationStats {
     article_created_percentage: number;
     create_opportunity_percentage: number;
     relevant_link_percentage: number;
+    link_rate: number;
+    average_score: number;
 }
 
 export interface ReportFilters {
@@ -158,9 +184,12 @@ export interface ReportFilters {
     engineer_ids?: number[];
     coach_user_id?: number;
     lead_user_id?: number;
+    lead_user_ids?: number[];
+    manager_user_ids?: number[];
     start_date?: string;
     end_date?: string;
     quarter?: string;
+    quarters?: string[];
     year?: number;
 }
 
@@ -232,4 +261,19 @@ export interface ExcelImportRequest {
     year: number;
     import_as_role?: 'coach' | 'admin';
     coach_selections?: Record<string, number>; // engineer_name -> coach_user_id
+}
+
+export interface ManagerAssignment {
+    id: number;
+    assignment_id?: number; // From API response
+    assignment_date?: string; // From API response
+    manager_id: number;
+    assigned_to: number;
+    user_id?: number; // Alias for assigned_to from API response
+    created_at: string;
+    deleted_at?: string;
+    manager_name?: string;
+    manager_email?: string; // From API response
+    user_name?: string;
+    user_email?: string; // From API response
 } 

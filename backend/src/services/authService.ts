@@ -68,7 +68,7 @@ export class AuthService {
     // Register new user (mock auth)
     async register(userData: CreateUserRequest): Promise<{ user: User; token: string }> {
         try {
-            const { email, password, name } = userData;
+            const { email, password, name, role } = userData;
 
             // Normalize email to lowercase for consistency
             const normalizedEmail = email.toLowerCase().trim();
@@ -88,13 +88,32 @@ export class AuthService {
                 const userCount = db.prepare('SELECT COUNT(*) as count FROM users WHERE deleted_at IS NULL').get() as { count: number };
                 const isFirstUser = userCount.count === 0;
 
+                // Set role flags based on the role parameter
+                let is_coach = 0;
+                let is_lead = 0;
+                let is_manager = 0;
+                let is_admin = 0;
+                // First user is always admin regardless of selected role
+                if (isFirstUser) {
+                    is_admin = 1;
+                }
+
+                // Set appropriate role flag based on selected role
+                if (role === 'coach') {
+                    is_coach = 1;
+                } else if (role === 'lead') {
+                    is_lead = 1;
+                } else if (role === 'manager') {
+                    is_manager = 1;
+                }
+
                 // Insert new user
                 const insertStmt = db.prepare(`
-                    INSERT INTO users (email, password_hash, name, is_admin)
-                    VALUES (?, ?, ?, ?)
+                    INSERT INTO users (email, password_hash, name, is_admin, is_coach, is_lead, is_manager)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
                 `);
 
-                const insertResult = insertStmt.run(normalizedEmail, passwordHash, name, isFirstUser ? 1 : 0);
+                const insertResult = insertStmt.run(normalizedEmail, passwordHash, name, is_admin, is_coach, is_lead, is_manager);
 
                 // Get the created user
                 const newUser = db.prepare('SELECT * FROM users WHERE id = ?').get(insertResult.lastInsertRowid) as User;
@@ -105,8 +124,8 @@ export class AuthService {
             // Generate token
             const token = this.generateToken(result);
 
-            // Log user creation
-            logger.info(`New user registered: ${normalizedEmail}${result.is_admin ? ' (Admin)' : ''}`);
+            // Log user creation with role information
+            logger.info(`New user registered: ${normalizedEmail} with role ${role || 'undefined'} | Flags: is_admin=${result.is_admin}, is_coach=${result.is_coach}, is_lead=${result.is_lead}, is_manager=${result.is_manager}`);
 
             // Remove password hash from response
             const { password_hash, ...userWithoutPassword } = result as any;
@@ -180,10 +199,10 @@ export class AuthService {
     }
 
     // Update user roles (admin only)
-    async updateUserRoles(adminId: number, targetUserId: number, roles: { is_coach?: boolean; is_lead?: boolean; is_admin?: boolean }): Promise<User> {
+    async updateUserRoles(adminId: number, targetUserId: number, roles: { is_coach?: boolean; is_lead?: boolean; is_admin?: boolean; is_manager?: boolean }): Promise<User> {
         try {
             // Get current user data for logging
-            const currentUser = db.prepare('SELECT is_coach, is_lead, is_admin FROM users WHERE id = ?').get(targetUserId);
+            const currentUser = db.prepare('SELECT is_coach, is_lead, is_admin, is_manager FROM users WHERE id = ?').get(targetUserId);
 
             // Prevent admin from removing their own admin permissions
             if (adminId === targetUserId && roles.is_admin === false) {
@@ -205,6 +224,10 @@ export class AuthService {
             if (roles.is_admin !== undefined) {
                 updates.push('is_admin = ?');
                 values.push(roles.is_admin ? 1 : 0);
+            }
+            if (roles.is_manager !== undefined) {
+                updates.push('is_manager = ?');
+                values.push(roles.is_manager ? 1 : 0);
             }
 
             if (updates.length === 0) {

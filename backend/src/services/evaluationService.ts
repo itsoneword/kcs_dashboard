@@ -19,12 +19,17 @@ class EvaluationService {
     // Get all evaluations with optional filtering
     getAllEvaluations(filters?: {
         engineerId?: number;
+        engineerIds?: number[];
         coachUserId?: number;
+        coachUserIds?: number[];
         leadUserId?: number;
+        leadUserIds?: number[];
         startDate?: string;
         endDate?: string;
         year?: number;
+        years?: number[];
         month?: number;
+        months?: number[];
     }): Evaluation[] {
         try {
             let query = `
@@ -41,17 +46,29 @@ class EvaluationService {
             `;
             const params: any[] = [];
 
-            if (filters?.engineerId) {
+            if (filters?.engineerIds?.length) {
+                const placeholders = filters.engineerIds.map(() => '?').join(', ');
+                query += ` AND ev.engineer_id IN (${placeholders})`;
+                params.push(...filters.engineerIds);
+            } else if (filters?.engineerId) {
                 query += ' AND ev.engineer_id = ?';
                 params.push(filters.engineerId);
             }
 
-            if (filters?.coachUserId) {
+            if (filters?.coachUserIds?.length) {
+                const placeholders = filters.coachUserIds.map(() => '?').join(', ');
+                query += ` AND ev.coach_user_id IN (${placeholders})`;
+                params.push(...filters.coachUserIds);
+            } else if (filters?.coachUserId) {
                 query += ' AND ev.coach_user_id = ?';
                 params.push(filters.coachUserId);
             }
 
-            if (filters?.leadUserId) {
+            if (filters?.leadUserIds?.length) {
+                const placeholders = filters.leadUserIds.map(() => '?').join(', ');
+                query += ` AND e.lead_user_id IN (${placeholders})`;
+                params.push(...filters.leadUserIds);
+            } else if (filters?.leadUserId) {
                 query += ' AND e.lead_user_id = ?';
                 params.push(filters.leadUserId);
             }
@@ -71,12 +88,30 @@ class EvaluationService {
                 params.push(filters.year.toString());
             }
 
+            if (filters?.years?.length) {
+                const placeholdersY = filters.years.map(() => '?').join(', ');
+                query += ` AND strftime('%Y', ev.evaluation_date) IN (${placeholdersY})`;
+                params.push(...filters.years.map(y => y.toString()));
+            }
+
             if (filters?.month) {
                 query += ' AND strftime(\'%m\', ev.evaluation_date) = ?';
                 params.push(filters.month.toString().padStart(2, '0'));
             }
 
+            if (filters?.months?.length) {
+                const placeholdersM = filters.months.map(() => '?').join(', ');
+                query += ` AND strftime('%m', ev.evaluation_date) IN (${placeholdersM})`;
+                params.push(...filters.months.map(m => m.toString().padStart(2, '0')));
+            }
+
             query += ' ORDER BY ev.evaluation_date DESC, e.name ASC';
+
+            // Debug: log filters, SQL, and params
+            // logger.debug('getAllEvaluations filters:', filters);
+            // logger.debug('getAllEvaluations SQL:', query, 'params:', params);
+            // console.log('getAllEvaluations filters:', filters);
+            // console.log('getAllEvaluations SQL:', query, 'params:', params);
 
             const stmt = db.prepare(query);
             const evaluations = stmt.all(...params) as Evaluation[];
@@ -611,9 +646,21 @@ class EvaluationService {
                 params.push(filters.coach_user_id);
             }
 
+            if (filters.coach_user_ids && filters.coach_user_ids.length > 0) {
+                const placeholders = filters.coach_user_ids.map(() => '?').join(',');
+                query += ` AND ev.coach_user_id IN (${placeholders})`;
+                params.push(...filters.coach_user_ids);
+            }
+
             if (filters.lead_user_id) {
                 query += ' AND e.lead_user_id = ?';
                 params.push(filters.lead_user_id);
+            }
+
+            if (filters.lead_user_ids && filters.lead_user_ids.length > 0) {
+                const placeholders = filters.lead_user_ids.map(() => '?').join(',');
+                query += ` AND e.lead_user_id IN (${placeholders})`;
+                params.push(...filters.lead_user_ids);
             }
 
             if (filters.start_date) {
@@ -631,6 +678,12 @@ class EvaluationService {
                 params.push(filters.year.toString());
             }
 
+            if (filters.years && filters.years.length > 0) {
+                const placeholdersY = filters.years.map(() => '?').join(',');
+                query += ` AND strftime('%Y', ev.evaluation_date) IN (${placeholdersY})`;
+                params.push(...filters.years.map(y => y.toString()));
+            }
+
             if (filters.quarter) {
                 // Map quarters to month ranges
                 const quarterMonths: Record<string, [string, string]> = {
@@ -645,6 +698,17 @@ class EvaluationService {
                     query += ' AND strftime(\'%m\', ev.evaluation_date) BETWEEN ? AND ?';
                     params.push(startMonth, endMonth);
                 }
+            }
+
+            if (filters.month) {
+                query += ' AND strftime(\'%m\', ev.evaluation_date) = ?';
+                params.push(filters.month.toString().padStart(2, '0'));
+            }
+
+            if (filters.months && filters.months.length > 0) {
+                const placeholdersM = filters.months.map(() => '?').join(',');
+                query += ` AND strftime('%m', ev.evaluation_date) IN (${placeholdersM})`;
+                params.push(...filters.months.map(m => m.toString().padStart(2, '0')));
             }
 
             const stmt = db.prepare(query);
@@ -670,7 +734,9 @@ class EvaluationService {
                 improvement_opportunity_percentage: totalCases > 0 ? Math.round((result.improvement_opportunity_count / totalCases) * 100) : 0,
                 article_created_percentage: totalCases > 0 ? Math.round((result.article_created_count / totalCases) * 100) : 0,
                 create_opportunity_percentage: totalCases > 0 ? Math.round((result.create_opportunity_count / totalCases) * 100) : 0,
-                relevant_link_percentage: articleLinkedCount > 0 ? Math.round((result.relevant_link_count / articleLinkedCount) * 100) : 0
+                relevant_link_percentage: articleLinkedCount > 0 ? Math.round((result.relevant_link_count / articleLinkedCount) * 100) : 0,
+                link_rate: totalCases > 0 ? Math.round((result.article_linked_count / totalCases) * 100) : 0,
+                average_score: totalCases > 0 ? Math.round((result.relevant_link_count / (result.article_linked_count || 1)) * 100) : 0
             };
 
             return stats;
@@ -681,4 +747,4 @@ class EvaluationService {
     }
 }
 
-export default new EvaluationService(); 
+export default new EvaluationService();

@@ -1,4 +1,3 @@
-
 ## 📡 API Endpoints & Usage
 
 ### Authentication APIs (`/api/auth`)
@@ -17,7 +16,7 @@
 
 | Endpoint | Method | Access | Description | Frontend Usage |
 |----------|--------|--------|-------------|----------------|
-| `/api/engineers` | GET | All Authenticated | List all engineers | `src/routes/engineers/+page.svelte` |
+| `/api/engineers` | GET | All Authenticated | List all active engineers | `src/routes/engineers/+page.svelte` |
 | `/api/engineers` | POST | Admin/Lead | Create new engineer | `src/routes/engineers/+page.svelte` |
 | `/api/engineers/:id` | GET | All Authenticated | Get engineer by ID | `src/routes/engineers/+page.svelte` |
 | `/api/engineers/:id` | PUT | Admin/Lead | Update engineer | `src/routes/engineers/+page.svelte` |
@@ -28,6 +27,17 @@
 | `/api/engineers/:id/assignments` | GET | All Authenticated | Get coach assignments for engineer | `src/routes/engineers/+page.svelte` |
 | `/api/engineers/assignments` | POST | Admin/Lead | Create coach assignment | `src/routes/engineers/+page.svelte` |
 | `/api/engineers/assignments/:id/end` | PUT | Admin/Lead | End coach assignment | `src/routes/engineers/+page.svelte` |
+
+#### Notes
+
+1. Engineer Status:
+   - Engineers use an `is_active` flag (0 or 1) to indicate their status
+   - All list endpoints return only active engineers by default (`is_active = 1`)
+   - Unlike users which use `deleted_at` for soft deletion, engineers are managed through the active flag
+
+2. Coach Assignments:
+   - Active assignments are indicated by `is_active = 1`
+   - When ending an assignment, it's marked as inactive rather than being deleted
 
 ### Evaluation Management APIs (`/api/evaluations`)
 
@@ -44,14 +54,54 @@
 
 ### Reports & Analytics APIs (`/api/reports`)
 
-| Endpoint | Method | Access | Description | Frontend Usage |
-|----------|--------|--------|-------------|----------------|
-| `/api/reports/stats` | GET | All Authenticated | Generate evaluation statistics | `src/routes/reports/+page.svelte` |
-| `/api/reports/my-team` | GET | Admin/Lead | Get stats for current user's team | `src/routes/reports/+page.svelte` |
-| `/api/reports/engineer/:id` | GET | All Authenticated | Get stats for specific engineer | `src/routes/reports/+page.svelte` |
-| `/api/reports/quarterly` | GET | All Authenticated | Get quarterly comparison report | `src/routes/reports/+page.svelte` |
-| `/api/reports/evaluations` | GET | All Authenticated | Get evaluations for specific filters | `src/routes/reports/+page.svelte` |
-| `/api/reports/engineers` | GET | All Authenticated | Get engineers for filtering based on role | `src/routes/reports/+page.svelte` |
+| Endpoint | Method | Access | Description | Frontend Usage | Status |
+|----------|--------|--------|-------------|----------------|--------|
+| `/api/reports/batch-stats` | GET | All Authenticated | Get all report data in a single call (recommended) | `src/routes/reports/+page.svelte` | Active |
+| `/api/reports/stats` | GET | All Authenticated | Generate evaluation statistics | `src/routes/reports/+page.svelte` | Deprecated |
+| `/api/reports/my-team` | GET | Admin/Lead | Get stats for current user's team | `src/routes/reports/+page.svelte` | Deprecated |
+| `/api/reports/engineer/:id` | GET | All Authenticated | Get stats for specific engineer | `src/routes/reports/+page.svelte` | Deprecated |
+| `/api/reports/quarterly` | GET | All Authenticated | Get quarterly comparison report | `src/routes/reports/+page.svelte` | Deprecated |
+| `/api/reports/monthly` | GET | All Authenticated | Get monthly stats for specified filters | `src/routes/reports/+page.svelte` | Deprecated |
+| `/api/reports/evaluations` | GET | All Authenticated | Get evaluations for specific filters | `src/routes/reports/+page.svelte` | Active |
+| `/api/reports/engineers` | GET | All Authenticated | Get engineers for filtering based on role | `src/routes/reports/+page.svelte` | Active |
+| `/api/reports/batch` | POST | All Authenticated | Get all report data in a single call (alternative) | `src/routes/reports/+page.svelte` | Active |
+
+#### `/api/reports/batch-stats` Parameters
+
+Query Parameters:
+- `year` (number): Year for the report (e.g., 2024)
+- `quarter` (string, optional): Quarter filter (Q1, Q2, Q3, Q4)
+- `engineer_ids` (string): Comma-separated list of engineer IDs (e.g., "21,22,23")
+- `start_date` (string, optional): Start date in ISO format
+- `end_date` (string, optional): End date in ISO format
+
+Response includes:
+- `overall_stats`: Combined statistics for all selected engineers
+- `quarterly_stats`: Statistics broken down by quarter
+- `individual_stats`: Individual statistics for each engineer
+- `monthly_data`: Monthly breakdown for each engineer
+
+#### Rate Limiting
+
+The reports API has a dedicated rate limiter:
+- 2000 requests per minute per IP
+- More lenient than the general API rate limit (1000 requests per 30 seconds)
+
+#### Notes
+
+1. The `/api/reports/batch-stats` endpoint is the recommended way to fetch report data as it:
+   - Reduces the number of API calls needed
+   - Uses comma-separated engineer IDs for better URL compatibility
+   - Returns all necessary data in a single response
+
+2. The following endpoints are deprecated and will be removed in future versions:
+   - `/api/reports/stats`
+   - `/api/reports/my-team`
+   - `/api/reports/engineer/:id`
+   - `/api/reports/quarterly`
+   - `/api/reports/monthly`
+
+3. For large reports, consider using pagination or limiting the number of engineers to prevent timeouts.
 
 ### Admin Management APIs (`/api/admin`)
 

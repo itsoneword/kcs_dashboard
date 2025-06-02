@@ -16,10 +16,10 @@ class EngineerService {
                     u.name as lead_name,
                     coach_user.name as coach_name
                 FROM engineers e
-                LEFT JOIN users u ON e.lead_user_id = u.id
+                LEFT JOIN users u ON e.lead_user_id = u.id AND u.deleted_at IS NULL
                 LEFT JOIN engineer_coach_assignments eca ON e.id = eca.engineer_id AND eca.is_active = 1
-                LEFT JOIN users coach_user ON eca.coach_user_id = coach_user.id
-                WHERE 1=1
+                LEFT JOIN users coach_user ON eca.coach_user_id = coach_user.id AND coach_user.deleted_at IS NULL
+                WHERE 1=1 and e.is_active =1
             `;
             const params: any[] = [];
 
@@ -52,9 +52,9 @@ class EngineerService {
                     u.name as lead_name,
                     coach_user.name as coach_name
                 FROM engineers e
-                LEFT JOIN users u ON e.lead_user_id = u.id
+                LEFT JOIN users u ON e.lead_user_id = u.id AND u.deleted_at IS NULL
                 LEFT JOIN engineer_coach_assignments eca ON e.id = eca.engineer_id AND eca.is_active = 1
-                LEFT JOIN users coach_user ON eca.coach_user_id = coach_user.id
+                LEFT JOIN users coach_user ON eca.coach_user_id = coach_user.id AND coach_user.deleted_at IS NULL
                 WHERE e.id = ?
             `);
             return stmt.get(id) as Engineer | null;
@@ -65,25 +65,15 @@ class EngineerService {
     }
 
     // Create new engineer
-    createEngineer(engineerData: CreateEngineerRequest): Engineer {
+    createEngineer(data: CreateEngineerRequest): Engineer {
         try {
             const stmt = db.prepare(`
                 INSERT INTO engineers (name, lead_user_id)
                 VALUES (?, ?)
             `);
+            const result = stmt.run(data.name, data.lead_user_id);
 
-            const result = stmt.run(
-                engineerData.name,
-                engineerData.lead_user_id || null
-            );
-
-            const newEngineer = this.getEngineerById(result.lastInsertRowid as number);
-            if (!newEngineer) {
-                throw new Error('Failed to retrieve created engineer');
-            }
-
-            logger.info(`Engineer created: ${newEngineer.name} (ID: ${newEngineer.id})`);
-            return newEngineer;
+            return this.getEngineerById(result.lastInsertRowid as number)!;
         } catch (error) {
             logger.error('Error creating engineer:', error);
             throw new Error('Failed to create engineer');
@@ -91,51 +81,38 @@ class EngineerService {
     }
 
     // Update engineer
-    updateEngineer(id: number, updateData: UpdateEngineerRequest): Engineer {
+    updateEngineer(id: number, data: UpdateEngineerRequest): Engineer {
         try {
-            const existingEngineer = this.getEngineerById(id);
-            if (!existingEngineer) {
-                throw new Error('Engineer not found');
-            }
-
             const updates: string[] = [];
             const params: any[] = [];
 
-            if (updateData.name !== undefined) {
+            if (data.name !== undefined) {
                 updates.push('name = ?');
-                params.push(updateData.name);
+                params.push(data.name);
             }
-
-            if (updateData.lead_user_id !== undefined) {
+            if (data.lead_user_id !== undefined) {
                 updates.push('lead_user_id = ?');
-                params.push(updateData.lead_user_id);
+                params.push(data.lead_user_id);
             }
-
-            if (updateData.is_active !== undefined) {
+            if (data.is_active !== undefined) {
                 updates.push('is_active = ?');
-                params.push(updateData.is_active ? 1 : 0);
+                params.push(data.is_active ? 1 : 0);
             }
 
             if (updates.length === 0) {
-                return existingEngineer;
+                throw new Error('No updates provided');
             }
 
             params.push(id);
+
             const stmt = db.prepare(`
-                UPDATE engineers 
+                UPDATE engineers
                 SET ${updates.join(', ')}
                 WHERE id = ?
             `);
-
             stmt.run(...params);
 
-            const updatedEngineer = this.getEngineerById(id);
-            if (!updatedEngineer) {
-                throw new Error('Failed to retrieve updated engineer');
-            }
-
-            logger.info(`Engineer updated: ${updatedEngineer.name} (ID: ${id})`);
-            return updatedEngineer;
+            return this.getEngineerById(id)!;
         } catch (error) {
             logger.error('Error updating engineer:', error);
             throw new Error('Failed to update engineer');
@@ -151,9 +128,9 @@ class EngineerService {
                     u.name as lead_name,
                     coach_user.name as coach_name
                 FROM engineers e
-                LEFT JOIN users u ON e.lead_user_id = u.id
+                LEFT JOIN users u ON e.lead_user_id = u.id AND u.deleted_at IS NULL
                 INNER JOIN engineer_coach_assignments eca ON e.id = eca.engineer_id
-                LEFT JOIN users coach_user ON eca.coach_user_id = coach_user.id
+                LEFT JOIN users coach_user ON eca.coach_user_id = coach_user.id AND coach_user.deleted_at IS NULL
                 WHERE eca.coach_user_id = ? AND eca.is_active = 1 AND e.is_active = 1
                 ORDER BY e.name ASC
             `);
@@ -173,9 +150,9 @@ class EngineerService {
                     u.name as lead_name,
                     coach_user.name as coach_name
                 FROM engineers e
-                LEFT JOIN users u ON e.lead_user_id = u.id
+                LEFT JOIN users u ON e.lead_user_id = u.id AND u.deleted_at IS NULL
                 LEFT JOIN engineer_coach_assignments eca ON e.id = eca.engineer_id AND eca.is_active = 1
-                LEFT JOIN users coach_user ON eca.coach_user_id = coach_user.id
+                LEFT JOIN users coach_user ON eca.coach_user_id = coach_user.id AND coach_user.deleted_at IS NULL
                 WHERE e.lead_user_id = ? AND e.is_active = 1
                 ORDER BY e.name ASC
             `);
@@ -195,9 +172,9 @@ class EngineerService {
                     u.name as lead_name,
                     coach_user.name as coach_name
                 FROM engineers e
-                LEFT JOIN users u ON e.lead_user_id = u.id
+                LEFT JOIN users u ON e.lead_user_id = u.id AND u.deleted_at IS NULL
                 LEFT JOIN engineer_coach_assignments eca ON e.id = eca.engineer_id AND eca.is_active = 1
-                LEFT JOIN users coach_user ON eca.coach_user_id = coach_user.id
+                LEFT JOIN users coach_user ON eca.coach_user_id = coach_user.id AND coach_user.deleted_at IS NULL
                 WHERE e.name LIKE ? AND e.is_active = 1
             `;
             const params: any[] = [`%${searchTerm}%`];

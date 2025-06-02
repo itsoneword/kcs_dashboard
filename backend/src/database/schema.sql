@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS users (
     is_coach BOOLEAN DEFAULT FALSE,
     is_lead BOOLEAN DEFAULT FALSE,
     is_admin BOOLEAN DEFAULT FALSE,   -- system admin role
+    is_manager BOOLEAN DEFAULT FALSE, -- manager role
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     deleted_at DATETIME DEFAULT NULL
@@ -24,6 +25,20 @@ CREATE TABLE IF NOT EXISTS engineers (
     is_active BOOLEAN DEFAULT TRUE,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Manager assignments (managers can be assigned to leads)
+CREATE TABLE IF NOT EXISTS manager_assignments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    manager_id INTEGER REFERENCES users(id),
+    assigned_to INTEGER REFERENCES users(id),
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    deleted_at DATETIME DEFAULT NULL
+);
+
+-- Create a unique index for active manager assignments instead of using WHERE clause
+CREATE UNIQUE INDEX IF NOT EXISTS idx_unique_manager_assignments 
+ON manager_assignments(manager_id, assigned_to) 
+WHERE deleted_at IS NULL;
 
 -- Coach assignments (many-to-many: coaches can have multiple engineers, engineers can have multiple coaches over time)
 CREATE TABLE IF NOT EXISTS engineer_coach_assignments (
@@ -65,6 +80,7 @@ CREATE TABLE IF NOT EXISTS case_evaluations (
     relevant_link BOOLEAN DEFAULT FALSE,
     notes TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    deleted_at DATETIME DEFAULT NULL,
     UNIQUE(evaluation_id, case_number)
 );
 
@@ -75,6 +91,22 @@ CREATE INDEX IF NOT EXISTS idx_assignments_active ON engineer_coach_assignments(
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 CREATE INDEX IF NOT EXISTS idx_engineers_lead ON engineers(lead_user_id);
 CREATE INDEX IF NOT EXISTS idx_engineers_active ON engineers(is_active);
+CREATE INDEX IF NOT EXISTS idx_users_deleted_at ON users(deleted_at);
+CREATE INDEX IF NOT EXISTS idx_evaluations_deleted_at ON evaluations(deleted_at);
+CREATE INDEX IF NOT EXISTS idx_evaluations_date_deleted ON evaluations(evaluation_date, deleted_at);
+CREATE INDEX IF NOT EXISTS idx_case_evaluations_deleted_at ON case_evaluations(deleted_at);
+CREATE INDEX IF NOT EXISTS idx_users_manager ON users(is_manager);
+CREATE INDEX IF NOT EXISTS idx_manager_assignments ON manager_assignments(manager_id, assigned_to);
+CREATE INDEX IF NOT EXISTS idx_manager_assignments_deleted_at ON manager_assignments(deleted_at);
+
+-- Unique constraints
+CREATE UNIQUE INDEX IF NOT EXISTS idx_evaluations_unique_engineer_month 
+ON evaluations(engineer_id, strftime('%Y-%m', evaluation_date)) 
+WHERE deleted_at IS NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_case_evaluations_unique_case_id 
+ON case_evaluations(evaluation_id, case_id) 
+WHERE deleted_at IS NULL AND case_id IS NOT NULL;
 
 -- Triggers to update updated_at timestamp
 CREATE TRIGGER IF NOT EXISTS update_users_timestamp 
@@ -87,4 +119,4 @@ CREATE TRIGGER IF NOT EXISTS update_evaluations_timestamp
     AFTER UPDATE ON evaluations
     BEGIN
         UPDATE evaluations SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
-    END; 
+    END;

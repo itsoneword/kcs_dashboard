@@ -69,7 +69,7 @@ class ExcelImportService {
         fileBuffer: Buffer,
         fileName: string,
         importingUser: User,
-        importRole: 'coach' | 'admin' = 'coach'
+        importRole: 'coach' | 'lead' | 'admin' = 'coach'
     ): Promise<ImportPreview> {
         try {
             logger.info(`Parsing Excel file: ${fileName} by user ${importingUser.id} (role: ${importRole})`);
@@ -227,9 +227,21 @@ class ExcelImportService {
         if (data.length > 0) {
             const firstRow = data[0] || [];
 
-            // H1 = coach, D1 = engineer
-            if (firstRow[7]) metadata.coach_name = String(firstRow[7]).trim();
-            if (firstRow[3]) metadata.engineer_name = String(firstRow[3]).trim();
+            // Check columns G, H, I (indices 6, 7, 8) for coach name
+            for (const colIndex of [6, 7, 8]) {
+                if (firstRow[colIndex] && String(firstRow[colIndex]).trim().match(/\w+\s+\w+/)) {
+                    metadata.coach_name = String(firstRow[colIndex]).trim();
+                    break;
+                }
+            }
+
+            // Check columns C, D, E (indices 2, 3, 4) for engineer name
+            for (const colIndex of [2, 3, 4]) {
+                if (firstRow[colIndex] && String(firstRow[colIndex]).trim().match(/\w+\s+\w+/)) {
+                    metadata.engineer_name = String(firstRow[colIndex]).trim();
+                    break;
+                }
+            }
         }
 
         return metadata;
@@ -337,7 +349,7 @@ class ExcelImportService {
     /**
      * Detect conflicts with existing data
      */
-    private async detectConflicts(preview: ImportPreview, importingUser: User, importRole: 'coach' | 'admin' = 'coach'): Promise<void> {
+    private async detectConflicts(preview: ImportPreview, importingUser: User, importRole: 'coach' | 'lead' | 'admin' = 'coach'): Promise<void> {
         try {
             const allEngineers = engineerService.getAllEngineers();
             const allUsers = authService.getAllUsers();
@@ -364,6 +376,28 @@ class ExcelImportService {
                 }
             }
 
+            // Step 1b: For leads, filter out engineers not under their lead
+            if (importRole === 'lead') {
+                const unauthorized = preview.engineers.filter(pe => {
+                    const existing = allEngineers.find(e =>
+                        e.name.toLowerCase() === pe.name.toLowerCase()
+                    );
+                    return existing && existing.lead_user_id !== importingUser.id;
+                });
+                if (unauthorized.length) {
+                    const names = unauthorized.map(pe => pe.name);
+                    preview.errors.push(
+                        `Skipping engineers not under your lead: ${names.join(', ')}`
+                    );
+                    preview.engineers = preview.engineers.filter(pe => {
+                        const existing = allEngineers.find(e =>
+                            e.name.toLowerCase() === pe.name.toLowerCase()
+                        );
+                        return !existing || existing.lead_user_id === importingUser.id;
+                    });
+                }
+            }
+
             // Step 2: Process each engineer for conflicts and missing coaches
             for (const parsedEngineer of preview.engineers) {
                 // Find existing engineer by name
@@ -382,9 +416,9 @@ class ExcelImportService {
                         preview.missing_coaches.push({
                             engineer_name: parsedEngineer.name,
                             excel_coach_name: parsedEngineer.coach_name,
-                            suggested_action: importRole === 'admin' ? 'manual_select' : 'assign_to_importer'
+                            suggested_action: importRole !== 'coach' ? 'manual_select' : 'assign_to_importer'
                         });
-                        logger.info(`Missing coach: ${parsedEngineer.coach_name} for ${parsedEngineer.name} -> ${importRole === 'admin' ? 'manual_select' : 'assign_to_importer'}`);
+                        logger.info(`Missing coach: ${parsedEngineer.coach_name} for ${parsedEngineer.name} -> ${importRole !== 'coach' ? 'manual_select' : 'assign_to_importer'}`);
                     } else if (existingEngineer) {
                         // Coach exists - check for reassignment conflicts
                         const activeAssignments = coachAssignmentService.getAllAssignments(existingEngineer.id, undefined, true);
@@ -397,7 +431,7 @@ class ExcelImportService {
                                 engineer_name: parsedEngineer.name,
                                 current_coach: currentCoach?.name || 'Unknown',
                                 excel_coach: parsedEngineer.coach_name,
-                                action: importRole === 'admin' ? 'manual' as const : 'skip' as const
+                                action: importRole !== 'coach' ? 'manual' as const : 'skip' as const
                             };
 
                             preview.conflicts.push(conflict);
@@ -406,8 +440,8 @@ class ExcelImportService {
                     }
                 } else {
                     // No coach name in Excel
-                    if (importRole === 'admin') {
-                        // Admin with no coach name - manual selection required
+                    if (importRole !== 'coach') {
+                        // Admin or Lead with no coach name - manual selection required
                         preview.missing_coaches.push({
                             engineer_name: parsedEngineer.name,
                             excel_coach_name: null,
@@ -440,7 +474,7 @@ class ExcelImportService {
         selectedYear: number,
         coachSelections: Record<string, number>, // engineer_name -> coach_user_id
         importingUser: User,
-        importRole: 'coach' | 'admin' = 'coach'
+        importRole: 'coach' | 'lead' | 'admin' = 'coach'
     ): Promise<ImportResult> {
         const result: ImportResult = {
             success: false,
@@ -496,7 +530,7 @@ class ExcelImportService {
         selectedYear: number,
         coachSelections: Record<string, number>,
         importingUser: User,
-        importRole: 'coach' | 'admin' = 'coach',
+        importRole: 'coach' | 'lead' | 'admin' = 'coach',
         result: ImportResult
     ): Promise<void> {
         logger.info(`Processing engineer: ${parsedEngineer.name}`);
@@ -511,8 +545,8 @@ class ExcelImportService {
 
             if (!engineer) {
                 // Create new engineer
-                // Only assign lead if importing as coach role and user is lead
-                const leadUserId = (importRole === 'coach' && importingUser.is_lead) ? importingUser.id : undefined;
+                // Only assign lead if importing as lead role and user is lead
+                const leadUserId = (importRole === 'lead' && importingUser.is_lead) ? importingUser.id : undefined;
 
                 engineer = engineerService.createEngineer({
                     name: parsedEngineer.name,
@@ -552,7 +586,7 @@ class ExcelImportService {
         engineer: Engineer,
         coachSelections: Record<string, number>,
         importingUser: User,
-        importRole: 'coach' | 'admin' = 'coach'
+        importRole: 'coach' | 'lead' | 'admin' = 'coach'
     ): Promise<void> {
         // Check if there's a coach selection for this engineer
         const coachSelection = coachSelections[parsedEngineer.name];
@@ -665,7 +699,7 @@ class ExcelImportService {
         // Safety check: ensure engineer has active coach before creating evaluations
         if (!coachAssignmentService.hasActiveCoach(engineer.id)) {
             logger.warn(`Skipping evaluation import for ${engineer.name}: No active coach assignment`);
-            result.errors.push(`${engineer.name}: No active coach assignment - please assign a coach first`);
+            result.errors.push(`${engineer.name}: No active coach assignment - please assign a coach`);
             return;
         }
 
@@ -739,12 +773,12 @@ class ExcelImportService {
                                 caseData.article_linked = value || undefined;
                             } else if (normalizedParam.includes('articleimproved') || normalizedParam.includes('improved')) {
                                 caseData.article_improved = value || undefined;
-                            } else if (normalizedParam.includes('improvementopportunity') || normalizedParam.includes('opportunity')) {
+                            } else if (normalizedParam.includes('createopportunity')) {
+                                caseData.create_opportunity = value || undefined;
+                            } else if (normalizedParam.includes('improvementopportunity')) {
                                 caseData.improvement_opportunity = value || undefined;
                             } else if (normalizedParam.includes('articlecreated') || normalizedParam.includes('created')) {
                                 caseData.article_created = value || undefined;
-                            } else if (normalizedParam.includes('createopportunity')) {
-                                caseData.create_opportunity = value || undefined;
                             } else if (normalizedParam.includes('relevantlink') || normalizedParam.includes('relevant')) {
                                 caseData.relevant_link = value || undefined;
                             }
@@ -785,6 +819,10 @@ class ExcelImportService {
                 }
 
             } catch (evalError: any) {
+                if (evalError.message.includes('already exists')) {
+                    logger.warn(`Evaluation already exists for ${engineer.name}, month ${month}, skipping`);
+                    continue;
+                }
                 logger.error(`Failed to create evaluation for ${engineer.name}, month ${month}: ${evalError.message}`);
                 throw evalError;
             }

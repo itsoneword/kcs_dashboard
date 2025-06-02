@@ -1,0 +1,1281 @@
+{
+    "openapi": "3.0.0",
+    "info": {
+        "title": "KCS Portal API",
+        "version": "1.0.0",
+        "description": "Auto-generated Swagger documentation stub for the KCS Portal backend."
+    },
+    "servers": [
+        {
+            "url": "http://localhost:3000/api",
+            "description": "Local development server"
+        }
+    ],
+    "paths": {
+        "/auth/register": {
+            "post": {
+                "tags": [
+                    "Authentication"
+                ],
+                "summary": "Register new user",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/RegisterRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "User registered successfully"
+                    },
+                    "400": {
+                        "description": "Validation error"
+                    }
+                }
+            }
+        },
+        "/auth/login": {
+            "post": {
+                "tags": [
+                    "Authentication"
+                ],
+                "summary": "User login",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/LoginRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Login successful"
+                    },
+                    "401": {
+                        "description": "Unauthorized"
+                    }
+                }
+            }
+        },
+        "/auth/logout": {
+            "post": {
+                "tags": [
+                    "Authentication"
+                ],
+                "summary": "User logout",
+                "responses": {
+                    "204": {
+                        "description": "Logout successful"
+                    }
+                }
+            }
+        },
+        "/auth/me": {
+            "get": {
+                "tags": [
+                    "Authentication"
+                ],
+                "summary": "Get current user info",
+                "responses": {
+                    "200": {
+                        "description": "User object",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/User"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/users": {
+            "get": {
+                "tags": [
+                    "Authentication"
+                ],
+                "summary": "List all users",
+                "responses": {
+                    "200": {
+                        "description": "Array of users",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/User"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/users/{id}/roles": {
+            "put": {
+                "tags": [
+                    "Authentication"
+                ],
+                "summary": "Update user roles",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateRolesRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Roles updated"
+                    },
+                    "404": {
+                        "description": "User not found"
+                    }
+                }
+            }
+        },
+        "/auth/users/{id}": {
+            "delete": {
+                "tags": [
+                    "Authentication"
+                ],
+                "summary": "Soft delete user",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "User deleted"
+                    },
+                    "404": {
+                        "description": "User not found"
+                    }
+                }
+            }
+        },
+        "/auth/users/{id}/password": {
+            "post": {
+                "tags": [
+                    "Authentication"
+                ],
+                "summary": "Change user password",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ChangePasswordRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Password changed successfully"
+                    },
+                    "400": {
+                        "description": "Invalid user ID or password too short"
+                    },
+                    "403": {
+                        "description": "Forbidden"
+                    },
+                    "404": {
+                        "description": "User not found"
+                    }
+                }
+            }
+        },
+        "/engineers": {
+            "get": {
+                "tags": [
+                    "Engineers"
+                ],
+                "summary": "List all active engineers",
+                "responses": {
+                    "200": {
+                        "description": "Array of engineers"
+                    }
+                }
+            },
+            "post": {
+                "tags": [
+                    "Engineers"
+                ],
+                "summary": "Create new engineer",
+                "responses": {
+                    "201": {
+                        "description": "Engineer created"
+                    }
+                }
+            }
+        },
+        "/engineers/{id}": {
+            "get": {
+                "tags": [
+                    "Engineers"
+                ],
+                "summary": "Get engineer by ID",
+                "responses": {
+                    "200": {
+                        "description": "Engineer object"
+                    }
+                }
+            },
+            "put": {
+                "tags": [
+                    "Engineers"
+                ],
+                "summary": "Update engineer",
+                "responses": {
+                    "200": {
+                        "description": "Engineer updated"
+                    }
+                }
+            }
+        },
+        "/engineers/for-evaluation": {
+            "get": {
+                "tags": [
+                    "Engineers"
+                ],
+                "summary": "Get engineers for evaluation",
+                "responses": {
+                    "200": {
+                        "description": "Array of engineers"
+                    }
+                }
+            }
+        },
+        "/engineers/by-coach/{coachId}": {
+            "get": {
+                "tags": [
+                    "Engineers"
+                ],
+                "summary": "Get engineers assigned to coach",
+                "responses": {
+                    "200": {
+                        "description": "Array of engineers"
+                    }
+                }
+            }
+        },
+        "/engineers/by-lead/{leadId}": {
+            "get": {
+                "tags": [
+                    "Engineers"
+                ],
+                "summary": "Get engineers assigned to lead",
+                "responses": {
+                    "200": {
+                        "description": "Array of engineers"
+                    }
+                }
+            }
+        },
+        "/engineers/search": {
+            "get": {
+                "tags": [
+                    "Engineers"
+                ],
+                "summary": "Search engineers by name",
+                "responses": {
+                    "200": {
+                        "description": "Array of engineers"
+                    }
+                }
+            }
+        },
+        "/engineers/{id}/assignments": {
+            "get": {
+                "tags": [
+                    "Engineers"
+                ],
+                "summary": "Get coach assignments for engineer",
+                "responses": {
+                    "200": {
+                        "description": "Array of assignments"
+                    }
+                }
+            }
+        },
+        "/engineers/assignments": {
+            "post": {
+                "tags": [
+                    "Engineers"
+                ],
+                "summary": "Create coach assignment",
+                "responses": {
+                    "201": {
+                        "description": "Assignment created"
+                    }
+                }
+            }
+        },
+        "/engineers/assignments/{id}/end": {
+            "put": {
+                "tags": [
+                    "Engineers"
+                ],
+                "summary": "End coach assignment",
+                "responses": {
+                    "200": {
+                        "description": "Assignment ended"
+                    }
+                }
+            }
+        },
+        "/evaluations": {
+            "get": {
+                "tags": [
+                    "Evaluations"
+                ],
+                "summary": "List all evaluations",
+                "responses": {
+                    "200": {
+                        "description": "Array of evaluations"
+                    }
+                }
+            },
+            "post": {
+                "tags": [
+                    "Evaluations"
+                ],
+                "summary": "Create new evaluation",
+                "responses": {
+                    "201": {
+                        "description": "Evaluation created"
+                    }
+                }
+            }
+        },
+        "/evaluations/{id}": {
+            "get": {
+                "tags": [
+                    "Evaluations"
+                ],
+                "summary": "Get evaluation details",
+                "responses": {
+                    "200": {
+                        "description": "Evaluation object"
+                    }
+                }
+            },
+            "put": {
+                "tags": [
+                    "Evaluations"
+                ],
+                "summary": "Update evaluation",
+                "responses": {
+                    "200": {
+                        "description": "Evaluation updated"
+                    }
+                }
+            }
+        },
+        "/evaluations/{id}/cases": {
+            "post": {
+                "tags": [
+                    "Evaluations"
+                ],
+                "summary": "Add new case to evaluation",
+                "responses": {
+                    "201": {
+                        "description": "Case added"
+                    }
+                }
+            }
+        },
+        "/evaluations/cases/{caseId}": {
+            "put": {
+                "tags": [
+                    "Evaluations"
+                ],
+                "summary": "Update case evaluation",
+                "responses": {
+                    "200": {
+                        "description": "Case updated"
+                    }
+                }
+            },
+            "delete": {
+                "tags": [
+                    "Evaluations"
+                ],
+                "summary": "Delete case evaluation",
+                "responses": {
+                    "204": {
+                        "description": "Case deleted"
+                    }
+                }
+            }
+        },
+        "/evaluations/cases/check/{caseId}": {
+            "get": {
+                "tags": [
+                    "Evaluations"
+                ],
+                "summary": "Check if case ID exists",
+                "responses": {
+                    "200": {
+                        "description": "Exists or not"
+                    }
+                }
+            }
+        },
+        "/reports/batch-stats": {
+            "get": {
+                "tags": [
+                    "Reports"
+                ],
+                "summary": "Get all report data in a single call",
+                "responses": {
+                    "200": {
+                        "description": "Report batch stats"
+                    }
+                }
+            }
+        },
+        "/reports/stats": {
+            "get": {
+                "tags": [
+                    "Reports"
+                ],
+                "summary": "Generate evaluation statistics",
+                "deprecated": true,
+                "responses": {
+                    "200": {
+                        "description": "Report stats"
+                    }
+                }
+            }
+        },
+        "/reports/my-team": {
+            "get": {
+                "tags": [
+                    "Reports"
+                ],
+                "summary": "Get stats for current user's team",
+                "deprecated": true,
+                "responses": {
+                    "200": {
+                        "description": "Team stats"
+                    }
+                }
+            }
+        },
+        "/reports/engineer/{id}": {
+            "get": {
+                "tags": [
+                    "Reports"
+                ],
+                "summary": "Get stats for specific engineer",
+                "deprecated": true,
+                "responses": {
+                    "200": {
+                        "description": "Engineer stats"
+                    }
+                }
+            }
+        },
+        "/reports/quarterly": {
+            "get": {
+                "tags": [
+                    "Reports"
+                ],
+                "summary": "Get quarterly comparison report",
+                "deprecated": true,
+                "responses": {
+                    "200": {
+                        "description": "Quarterly report"
+                    }
+                }
+            }
+        },
+        "/reports/monthly": {
+            "get": {
+                "tags": [
+                    "Reports"
+                ],
+                "summary": "Get monthly stats for specified filters",
+                "deprecated": true,
+                "responses": {
+                    "200": {
+                        "description": "Monthly report"
+                    }
+                }
+            }
+        },
+        "/reports/evaluations": {
+            "get": {
+                "tags": [
+                    "Reports"
+                ],
+                "summary": "Get evaluations for specific filters",
+                "responses": {
+                    "200": {
+                        "description": "Evaluation reports"
+                    }
+                }
+            }
+        },
+        "/reports/engineers": {
+            "get": {
+                "tags": [
+                    "Reports"
+                ],
+                "summary": "Get engineers for filtering based on role",
+                "responses": {
+                    "200": {
+                        "description": "Engineers list"
+                    }
+                }
+            }
+        },
+        "/reports/batch": {
+            "post": {
+                "tags": [
+                    "Reports"
+                ],
+                "summary": "Get all report data in a single call (alternative)",
+                "responses": {
+                    "200": {
+                        "description": "Report batch data"
+                    }
+                }
+            }
+        },
+        "/admin/database/status": {
+            "get": {
+                "tags": [
+                    "Admin"
+                ],
+                "summary": "Get database status",
+                "responses": {
+                    "200": {
+                        "description": "Database status"
+                    }
+                }
+            }
+        },
+        "/admin/database/backup": {
+            "post": {
+                "tags": [
+                    "Admin"
+                ],
+                "summary": "Create database backup",
+                "responses": {
+                    "201": {
+                        "description": "Backup created"
+                    }
+                }
+            }
+        },
+        "/admin/database/backups": {
+            "get": {
+                "tags": [
+                    "Admin"
+                ],
+                "summary": "List available backups",
+                "responses": {
+                    "200": {
+                        "description": "List of backups"
+                    }
+                }
+            }
+        },
+        "/admin/database/schema": {
+            "get": {
+                "tags": [
+                    "Admin"
+                ],
+                "summary": "Get current schema information",
+                "responses": {
+                    "200": {
+                        "description": "Schema info"
+                    }
+                }
+            }
+        },
+        "/admin/database/migrations": {
+            "get": {
+                "tags": [
+                    "Admin"
+                ],
+                "summary": "Get available migration files",
+                "responses": {
+                    "200": {
+                        "description": "Migration files list"
+                    }
+                }
+            }
+        },
+        "/admin/database/execute-sql": {
+            "post": {
+                "tags": [
+                    "Admin"
+                ],
+                "summary": "Execute SQL command",
+                "responses": {
+                    "200": {
+                        "description": "SQL execution result"
+                    }
+                }
+            }
+        },
+        "/admin/database/change-db": {
+            "post": {
+                "tags": [
+                    "Admin"
+                ],
+                "summary": "Change active database file",
+                "responses": {
+                    "200": {
+                        "description": "Database changed"
+                    }
+                }
+            }
+        },
+        "/dashboard/overview": {
+            "get": {
+                "tags": [
+                    "Dashboard"
+                ],
+                "summary": "Get dashboard overview statistics",
+                "responses": {
+                    "200": {
+                        "description": "Dashboard overview"
+                    }
+                }
+            }
+        },
+        "/health": {
+            "get": {
+                "tags": [
+                    "Health"
+                ],
+                "summary": "System health status",
+                "responses": {
+                    "200": {
+                        "description": "Health status"
+                    }
+                }
+            }
+        }
+    },
+    "components": {
+        "schemas": {
+            "RegisterRequest": {
+                "type": "object",
+                "properties": {
+                    "email": {
+                        "type": "string",
+                        "format": "email"
+                    },
+                    "password": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "email",
+                    "password"
+                ]
+            },
+            "LoginRequest": {
+                "type": "object",
+                "properties": {
+                    "email": {
+                        "type": "string",
+                        "format": "email"
+                    },
+                    "password": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "email",
+                    "password"
+                ]
+            },
+            "User": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string"
+                    },
+                    "email": {
+                        "type": "string",
+                        "format": "email"
+                    },
+                    "roles": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "deleted_at": {
+                        "type": "string",
+                        "format": "date-time",
+                        "nullable": true
+                    }
+                },
+                "required": [
+                    "id",
+                    "email",
+                    "roles"
+                ]
+            },
+            "UpdateRolesRequest": {
+                "type": "object",
+                "properties": {
+                    "roles": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "required": [
+                    "roles"
+                ]
+            },
+            "ChangePasswordRequest": {
+                "type": "object",
+                "properties": {
+                    "newPassword": {
+                        "type": "string",
+                        "minLength": 6
+                    }
+                },
+                "required": [
+                    "newPassword"
+                ]
+            },
+            "Engineer": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "integer"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "lead_user_id": {
+                        "type": "integer",
+                        "nullable": true
+                    },
+                    "is_active": {
+                        "type": "boolean"
+                    },
+                    "created_at": {
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "lead_name": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "coach_name": {
+                        "type": "string",
+                        "nullable": true
+                    }
+                },
+                "required": [
+                    "id",
+                    "name",
+                    "is_active",
+                    "created_at"
+                ]
+            },
+            "CreateEngineerRequest": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string"
+                    },
+                    "lead_user_id": {
+                        "type": "integer"
+                    }
+                },
+                "required": [
+                    "name"
+                ]
+            },
+            "UpdateEngineerRequest": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string"
+                    },
+                    "lead_user_id": {
+                        "type": "integer",
+                        "nullable": true
+                    },
+                    "is_active": {
+                        "type": "boolean"
+                    }
+                }
+            },
+            "CoachAssignment": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "integer"
+                    },
+                    "engineer_id": {
+                        "type": "integer"
+                    },
+                    "coach_user_id": {
+                        "type": "integer"
+                    },
+                    "start_date": {
+                        "type": "string",
+                        "format": "date"
+                    },
+                    "end_date": {
+                        "type": "string",
+                        "format": "date",
+                        "nullable": true
+                    },
+                    "is_active": {
+                        "type": "boolean"
+                    },
+                    "created_at": {
+                        "type": "string",
+                        "format": "date-time"
+                    }
+                },
+                "required": [
+                    "id",
+                    "engineer_id",
+                    "coach_user_id",
+                    "start_date",
+                    "is_active",
+                    "created_at"
+                ]
+            },
+            "CreateCoachAssignmentRequest": {
+                "type": "object",
+                "properties": {
+                    "engineer_id": {
+                        "type": "integer"
+                    },
+                    "coach_user_id": {
+                        "type": "integer"
+                    },
+                    "start_date": {
+                        "type": "string",
+                        "format": "date"
+                    }
+                },
+                "required": [
+                    "engineer_id",
+                    "coach_user_id",
+                    "start_date"
+                ]
+            },
+            "Evaluation": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "integer"
+                    },
+                    "engineer_id": {
+                        "type": "integer"
+                    },
+                    "coach_user_id": {
+                        "type": "integer"
+                    },
+                    "evaluation_date": {
+                        "type": "string",
+                        "format": "date"
+                    },
+                    "created_by": {
+                        "type": "integer"
+                    },
+                    "created_at": {
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "updated_by": {
+                        "type": "integer"
+                    },
+                    "updated_at": {
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "engineer_name": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "coach_name": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "lead_name": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "case_count": {
+                        "type": "integer",
+                        "nullable": true
+                    },
+                    "cases": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/CaseEvaluation"
+                        }
+                    }
+                },
+                "required": [
+                    "id",
+                    "engineer_id",
+                    "coach_user_id",
+                    "evaluation_date",
+                    "created_by",
+                    "created_at",
+                    "updated_by",
+                    "updated_at"
+                ]
+            },
+            "CreateEvaluationRequest": {
+                "type": "object",
+                "properties": {
+                    "engineer_id": {
+                        "type": "integer"
+                    },
+                    "evaluation_date": {
+                        "type": "string",
+                        "format": "date"
+                    }
+                },
+                "required": [
+                    "engineer_id",
+                    "evaluation_date"
+                ]
+            },
+            "UpdateEvaluationRequest": {
+                "type": "object",
+                "properties": {
+                    "evaluation_date": {
+                        "type": "string",
+                        "format": "date"
+                    }
+                }
+            },
+            "CaseEvaluation": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "integer"
+                    },
+                    "evaluation_id": {
+                        "type": "integer"
+                    },
+                    "case_number": {
+                        "type": "integer"
+                    },
+                    "case_id": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "kb_potential": {
+                        "type": "boolean"
+                    },
+                    "article_linked": {
+                        "type": "boolean"
+                    },
+                    "article_improved": {
+                        "type": "boolean"
+                    },
+                    "improvement_opportunity": {
+                        "type": "boolean"
+                    },
+                    "article_created": {
+                        "type": "boolean"
+                    },
+                    "create_opportunity": {
+                        "type": "boolean"
+                    },
+                    "relevant_link": {
+                        "type": "boolean"
+                    },
+                    "notes": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "created_at": {
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "deleted_at": {
+                        "type": "string",
+                        "format": "date-time",
+                        "nullable": true
+                    }
+                },
+                "required": [
+                    "id",
+                    "evaluation_id",
+                    "case_number",
+                    "kb_potential",
+                    "article_linked",
+                    "article_improved",
+                    "improvement_opportunity",
+                    "article_created",
+                    "create_opportunity",
+                    "relevant_link",
+                    "created_at"
+                ]
+            },
+            "CreateCaseEvaluationRequest": {
+                "type": "object",
+                "properties": {
+                    "case_id": {
+                        "type": "string"
+                    },
+                    "kb_potential": {
+                        "type": "boolean"
+                    },
+                    "article_linked": {
+                        "type": "boolean"
+                    },
+                    "article_improved": {
+                        "type": "boolean"
+                    },
+                    "improvement_opportunity": {
+                        "type": "boolean"
+                    },
+                    "article_created": {
+                        "type": "boolean"
+                    },
+                    "create_opportunity": {
+                        "type": "boolean"
+                    },
+                    "relevant_link": {
+                        "type": "boolean"
+                    },
+                    "notes": {
+                        "type": "string"
+                    }
+                }
+            },
+            "UpdateCaseEvaluationRequest": {
+                "type": "object",
+                "properties": {
+                    "case_id": {
+                        "type": "string"
+                    },
+                    "kb_potential": {
+                        "type": "boolean"
+                    },
+                    "article_linked": {
+                        "type": "boolean"
+                    },
+                    "article_improved": {
+                        "type": "boolean"
+                    },
+                    "improvement_opportunity": {
+                        "type": "boolean"
+                    },
+                    "article_created": {
+                        "type": "boolean"
+                    },
+                    "create_opportunity": {
+                        "type": "boolean"
+                    },
+                    "relevant_link": {
+                        "type": "boolean"
+                    },
+                    "notes": {
+                        "type": "string"
+                    }
+                }
+            },
+            "EvaluationStats": {
+                "type": "object",
+                "properties": {
+                    "total_evaluations": {
+                        "type": "integer"
+                    },
+                    "total_cases": {
+                        "type": "integer"
+                    },
+                    "evaluated_cases": {
+                        "type": "integer"
+                    },
+                    "kb_potential_count": {
+                        "type": "integer"
+                    },
+                    "article_linked_count": {
+                        "type": "integer"
+                    },
+                    "article_improved_count": {
+                        "type": "integer"
+                    },
+                    "improvement_opportunity_count": {
+                        "type": "integer"
+                    },
+                    "article_created_count": {
+                        "type": "integer"
+                    },
+                    "create_opportunity_count": {
+                        "type": "integer"
+                    },
+                    "relevant_link_count": {
+                        "type": "integer"
+                    },
+                    "kb_potential_percentage": {
+                        "type": "number",
+                        "format": "float"
+                    },
+                    "article_linked_percentage": {
+                        "type": "number",
+                        "format": "float"
+                    },
+                    "article_improved_percentage": {
+                        "type": "number",
+                        "format": "float"
+                    },
+                    "improvement_opportunity_percentage": {
+                        "type": "number",
+                        "format": "float"
+                    },
+                    "article_created_percentage": {
+                        "type": "number",
+                        "format": "float"
+                    },
+                    "create_opportunity_percentage": {
+                        "type": "number",
+                        "format": "float"
+                    },
+                    "relevant_link_percentage": {
+                        "type": "number",
+                        "format": "float"
+                    },
+                    "link_rate": {
+                        "type": "number",
+                        "format": "float"
+                    },
+                    "average_score": {
+                        "type": "number",
+                        "format": "float"
+                    }
+                },
+                "required": [
+                    "total_evaluations",
+                    "total_cases",
+                    "evaluated_cases",
+                    "kb_potential_count",
+                    "article_linked_count",
+                    "article_improved_count",
+                    "improvement_opportunity_count",
+                    "article_created_count",
+                    "create_opportunity_count",
+                    "relevant_link_count",
+                    "kb_potential_percentage",
+                    "article_linked_percentage",
+                    "article_improved_percentage",
+                    "improvement_opportunity_percentage",
+                    "article_created_percentage",
+                    "create_opportunity_percentage",
+                    "relevant_link_percentage",
+                    "link_rate",
+                    "average_score"
+                ]
+            },
+            "MonthlyData": {
+                "type": "object",
+                "properties": {
+                    "month": {
+                        "type": "string"
+                    },
+                    "month_number": {
+                        "type": "integer"
+                    },
+                    "stats": {
+                        "$ref": "#/components/schemas/EvaluationStats"
+                    }
+                },
+                "required": [
+                    "month",
+                    "month_number",
+                    "stats"
+                ]
+            },
+            "ReportBatchResponse": {
+                "type": "object",
+                "properties": {
+                    "overall_stats": {
+                        "$ref": "#/components/schemas/EvaluationStats"
+                    },
+                    "quarterly_stats": {
+                        "type": "object",
+                        "additionalProperties": {
+                            "$ref": "#/components/schemas/EvaluationStats"
+                        }
+                    },
+                    "individual_stats": {
+                        "type": "object",
+                        "additionalProperties": {
+                            "$ref": "#/components/schemas/EvaluationStats"
+                        }
+                    },
+                    "monthly_data": {
+                        "type": "object",
+                        "additionalProperties": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/components/schemas/MonthlyData"
+                            }
+                        }
+                    }
+                },
+                "required": [
+                    "overall_stats",
+                    "quarterly_stats",
+                    "individual_stats",
+                    "monthly_data"
+                ]
+            }
+        }
+    }
+}

@@ -70,7 +70,7 @@ const updateCaseSchema = Joi.object({
 // Validation schema for import request
 const importSchema = Joi.object({
     year: Joi.number().integer().min(2020).max(2030).required(),
-    import_as_role: Joi.string().valid('coach', 'admin').optional(),
+    import_as_role: Joi.string().valid('coach', 'admin', 'lead').optional(),
     coach_selections: Joi.alternatives().try(
         Joi.object().pattern(
             Joi.string(), // engineer name
@@ -85,9 +85,9 @@ router.post('/import', authenticateToken, upload.single('excel_file'), async (re
     try {
         const user = req.user!;
 
-        // Check permissions - only admins and coaches can import
-        if (!user.is_admin && !user.is_coach) {
-            res.status(403).json({ error: 'Access denied - admin or coach access required' });
+        // Check permissions - allow admins, coaches, leads, managers
+        if (!user.is_admin && !user.is_coach && !user.is_lead && !user.is_manager) {
+            res.status(403).json({ error: 'Access denied - insufficient permissions to import evaluations' });
             return;
         }
 
@@ -116,10 +116,12 @@ router.post('/import', authenticateToken, upload.single('excel_file'), async (re
             }
         }
 
-        // Determine import role
-        let importRole = 'coach';
-        if (user.is_admin && import_as_role) {
-            importRole = import_as_role;
+        // Determine import role (coach, lead, admin)
+        let importRole: 'coach' | 'lead' | 'admin' = 'coach';
+        if (user.is_admin || user.is_manager) {
+            importRole = import_as_role || 'admin';
+        } else if (user.is_lead) {
+            importRole = 'lead';
         }
 
         try {
@@ -128,7 +130,7 @@ router.post('/import', authenticateToken, upload.single('excel_file'), async (re
                 req.file.buffer,
                 req.file.originalname,
                 user,
-                importRole as 'coach' | 'admin'
+                importRole
             );
 
             // If this is just a preview request (no coach_selections), return preview
@@ -147,7 +149,7 @@ router.post('/import', authenticateToken, upload.single('excel_file'), async (re
                 year,
                 coach_selections || {},
                 user,
-                importRole as 'coach' | 'admin'
+                importRole
             );
 
             // Log the import action
@@ -185,21 +187,80 @@ router.post('/import', authenticateToken, upload.single('excel_file'), async (re
 router.get('/', authenticateToken, (req: AuthRequest, res: Response, next: NextFunction): void => {
     try {
         const user = req.user!;
-        const { engineer_id, coach_user_id, lead_user_id, start_date, end_date, year, month } = req.query;
+        const { engineer_id, engineer_ids, coach_user_id, coach_user_ids, lead_user_id, lead_user_ids, start_date, end_date, year, years, month, months } = req.query;
 
         let evaluations;
         const filters: any = {};
 
         // Add query filters
-        if (engineer_id) filters.engineerId = parseInt(engineer_id as string);
-        if (coach_user_id) filters.coachUserId = parseInt(coach_user_id as string);
-        if (lead_user_id) filters.leadUserId = parseInt(lead_user_id as string);
+        if (engineer_ids) {
+            const rawVals = Array.isArray(engineer_ids) ? engineer_ids : [engineer_ids];
+            const ids = rawVals
+                .map(val => String(val))
+                .flatMap(str => str.replace(/[()]/g, '').split(','))
+                .map(s => parseInt(s.trim(), 10))
+                .filter(n => !isNaN(n));
+            if (ids.length) filters.engineerIds = ids;
+        } else if (typeof engineer_id === 'string') {
+            const idNum = parseInt(engineer_id, 10);
+            if (!isNaN(idNum)) filters.engineerId = idNum;
+        }
+        if (coach_user_ids) {
+            const rawVals = Array.isArray(coach_user_ids) ? coach_user_ids : [coach_user_ids];
+            const ids = rawVals
+                .map(val => String(val))
+                .flatMap(str => str.replace(/[()]/g, '').split(','))
+                .map(s => parseInt(s.trim(), 10))
+                .filter(n => !isNaN(n));
+            if (ids.length) filters.coachUserIds = ids;
+        } else if (typeof coach_user_id === 'string') {
+            const idNum = parseInt(coach_user_id, 10);
+            if (!isNaN(idNum)) filters.coachUserId = idNum;
+        }
+        if (lead_user_ids) {
+            const rawVals = Array.isArray(lead_user_ids) ? lead_user_ids : [lead_user_ids];
+            const ids = rawVals
+                .map(val => String(val))
+                .flatMap(str => str.replace(/[()]/g, '').split(','))
+                .map(s => parseInt(s.trim(), 10))
+                .filter(n => !isNaN(n));
+            if (ids.length) filters.leadUserIds = ids;
+        } else if (typeof lead_user_id === 'string') {
+            const idNum = parseInt(lead_user_id, 10);
+            if (!isNaN(idNum)) filters.leadUserId = idNum;
+        }
         if (start_date) filters.startDate = start_date as string;
         if (end_date) filters.endDate = end_date as string;
-        if (year) filters.year = parseInt(year as string);
-        if (month) filters.month = parseInt(month as string);
 
-        if (user.is_admin || user.is_coach || user.is_lead) {
+        // parse single or multi-year
+        if (years) {
+            const rawVals = Array.isArray(years) ? years : [years];
+            const ys = rawVals
+                .map(val => String(val))
+                .flatMap(str => str.replace(/[()]/g, '').split(','))
+                .map(s => parseInt(s.trim(), 10))
+                .filter(n => !isNaN(n));
+            if (ys.length) filters.years = ys;
+        } else if (typeof year === 'string') {
+            const yNum = parseInt(year, 10);
+            if (!isNaN(yNum)) filters.year = yNum;
+        }
+
+        // parse single or multi-month
+        if (months) {
+            const rawVals = Array.isArray(months) ? months : [months];
+            const ms = rawVals
+                .map(val => String(val))
+                .flatMap(str => str.replace(/[()]/g, '').split(','))
+                .map(s => parseInt(s.trim(), 10))
+                .filter(n => !isNaN(n));
+            if (ms.length) filters.months = ms;
+        } else if (typeof month === 'string') {
+            const mNum = parseInt(month, 10);
+            if (!isNaN(mNum)) filters.month = mNum;
+        }
+
+        if (user.is_admin || user.is_coach || user.is_lead || user.is_manager) {
             // All authenticated users can see all evaluations with optional filtering
             evaluations = evaluationService.getAllEvaluations(filters);
         } else {
@@ -232,7 +293,7 @@ router.get('/:id', authenticateToken, (req: AuthRequest, res: Response, next: Ne
         const user = req.user!;
 
         // Check permissions
-        if (!user.is_admin && !user.is_lead && !user.is_coach) {
+        if (!user.is_admin && !user.is_lead && !user.is_coach && !user.is_manager) {
             res.status(403).json({ error: 'Insufficient permissions' });
             return;
         }
@@ -486,8 +547,8 @@ router.get('/cases/check/:caseId', authenticateToken, async (req: AuthRequest, r
     try {
         const user = req.user!;
 
-        // Check permissions - allow admins and coaches to check case IDs
-        if (!user.is_admin && !user.is_coach) {
+        // Check permissions - allow admins, coaches, and managers to check case IDs
+        if (!user.is_admin && !user.is_coach && !user.is_manager) {
             res.status(403).json({ error: 'Access denied - admin or coach access required' });
             return;
         }

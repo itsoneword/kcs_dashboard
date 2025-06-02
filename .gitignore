@@ -28,3 +28,5 @@ vite.config.ts.timestamp-*
 logs/
 *.xls*
 backups/
+accounts_list.md
+docs/

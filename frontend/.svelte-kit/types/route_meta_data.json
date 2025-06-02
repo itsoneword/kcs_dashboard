@@ -1,13 +1,37 @@
 {
-	"/": [],
-	"/admin": [],
-	"/coach": [],
-	"/coach/evaluations/[id]": [],
-	"/dashboard": [],
-	"/debug": [],
-	"/evaluations": [],
-	"/evaluations/[id]": [],
-	"/lead": [],
-	"/login": [],
-	"/reports": []
+	"/": [
+		"src/routes/+layout.ts",
+		"src/routes/+layout.ts"
+	],
+	"/admin": [
+		"src/routes/+layout.ts"
+	],
+	"/coach": [
+		"src/routes/+layout.ts"
+	],
+	"/coach/evaluations/[id]": [
+		"src/routes/+layout.ts"
+	],
+	"/dashboard": [
+		"src/routes/+layout.ts"
+	],
+	"/debug": [
+		"src/routes/+layout.ts"
+	],
+	"/evaluations": [
+		"src/routes/+layout.ts"
+	],
+	"/evaluations/[id]": [
+		"src/routes/+layout.ts"
+	],
+	"/lead": [
+		"src/routes/+layout.ts"
+	],
+	"/login": [
+		"src/routes/+layout.ts"
+	],
+	"/reports": [
+		"src/routes/reports/+page.ts",
+		"src/routes/+layout.ts"
+	]
 }

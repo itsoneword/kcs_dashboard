@@ -42,6 +42,9 @@ router.get('/', authenticateToken, (req: AuthRequest, res: Response, next: NextF
         } else if (user.is_coach) {
             // Coach can see all engineers (for evaluations)
             engineers = engineerService.getAllEngineers();
+        } else if (user.is_manager) {
+            // Manager can see all engineers (for filtering and management)
+            engineers = engineerService.getAllEngineers();
         } else {
             res.status(403).json({ error: 'Insufficient permissions' });
             return;
@@ -60,7 +63,7 @@ router.get('/for-evaluation', authenticateToken, (req: AuthRequest, res: Respons
         const user = req.user!;
         let engineers;
 
-        if (user.is_admin || user.is_coach || user.is_lead) {
+        if (user.is_admin || user.is_coach || user.is_lead || user.is_manager) {
             // All authenticated users can see all active engineers
             engineers = engineerService.getAllEngineers(undefined, true);
         } else {
@@ -141,6 +144,8 @@ router.get('/search', authenticateToken, (req: AuthRequest, res: Response, next:
             engineers = engineerService.searchEngineers(searchTerm);
         } else if (user.is_lead) {
             engineers = engineerService.searchEngineers(searchTerm, user.id);
+        } else if (user.is_manager) {
+            engineers = engineerService.searchEngineers(searchTerm);
         } else if (user.is_coach) {
             engineers = engineerService.searchEngineers(searchTerm);
         } else {
@@ -173,7 +178,7 @@ router.get('/:id', authenticateToken, (req: AuthRequest, res: Response, next: Ne
         const user = req.user!;
 
         // Check permissions
-        if (!user.is_admin && !user.is_lead && !user.is_coach) {
+        if (!user.is_admin && !user.is_lead && !user.is_coach && !user.is_manager) {
             res.status(403).json({ error: 'Insufficient permissions' });
             return;
         }
@@ -202,13 +207,13 @@ router.get('/:id', authenticateToken, (req: AuthRequest, res: Response, next: Ne
     }
 });
 
-// POST /api/engineers - Create new engineer (admin and leads only)
+// POST /api/engineers - Create new engineer (admin , leads, managers only)
 router.post('/', authenticateToken, async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
         const user = req.user!;
 
         // Check permissions
-        if (!user.is_admin && !user.is_lead) {
+        if (!user.is_admin && !user.is_lead && !user.is_manager) {
             res.status(403).json({ error: 'Admin or Lead access required' });
             return;
         }
@@ -240,7 +245,7 @@ router.post('/', authenticateToken, async (req: AuthRequest, res: Response, next
     }
 });
 
-// PUT /api/engineers/:id - Update engineer (admin and leads only)
+// PUT /api/engineers/:id - Update engineer (admin , leads, managers only)
 router.put('/:id', authenticateToken, async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
         const user = req.user!;
@@ -267,7 +272,7 @@ router.put('/:id', authenticateToken, async (req: AuthRequest, res: Response, ne
         }
 
         // Permission checks
-        if (!user.is_admin && !user.is_lead) {
+        if (!user.is_admin && !user.is_lead && !user.is_manager) {
             res.status(403).json({ error: 'Admin or Lead access required' });
             return;
         }
@@ -317,7 +322,7 @@ router.post('/assignments', authenticateToken, async (req: AuthRequest, res: Res
         const user = req.user!;
 
         // Check permissions
-        if (!user.is_admin && !user.is_lead) {
+        if (!user.is_admin && !user.is_lead && !user.is_manager) {
             res.status(403).json({ error: 'Admin or Lead access required' });
             return;
         }
@@ -363,7 +368,7 @@ router.put('/assignments/:id/end', authenticateToken, async (req: AuthRequest, r
         const user = req.user!;
 
         // Check permissions
-        if (!user.is_admin && !user.is_lead) {
+        if (!user.is_admin && !user.is_lead && !user.is_manager) {
             res.status(403).json({ error: 'Admin or Lead access required' });
             return;
         }

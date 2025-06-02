@@ -4,6 +4,8 @@ import { AuthRequest, LoginRequest, CreateUserRequest, UpdateUserRolesRequest } 
 import { authenticateToken, requireAdmin, requireAnyRole } from '../middleware/auth';
 import logger, { logUserAction } from '../utils/logger';
 import Joi from 'joi';
+import bcrypt from 'bcryptjs';
+import { db } from '../database/database';
 
 const router = Router();
 
@@ -16,13 +18,15 @@ const loginSchema = Joi.object({
 const registerSchema = Joi.object({
     email: Joi.string().email().required(),
     password: Joi.string().min(6).required(),
-    name: Joi.string().min(2).max(100).required()
+    name: Joi.string().min(2).max(100).required(),
+    role: Joi.string().valid('coach', 'lead', 'manager').default('coach')
 });
 
 const updateRolesSchema = Joi.object({
     is_coach: Joi.boolean().optional(),
     is_lead: Joi.boolean().optional(),
-    is_admin: Joi.boolean().optional()
+    is_admin: Joi.boolean().optional(),
+    is_manager: Joi.boolean().optional()
 }).min(1);
 
 // POST /api/auth/login - Mock authentication
@@ -96,7 +100,7 @@ router.get('/me', authenticateToken, (req: AuthRequest, res: Response) => {
 });
 
 // GET /api/auth/users - Get all users (admin, lead, and coach access)
-router.get('/users', authenticateToken, requireAnyRole(['admin', 'lead', 'coach']), (req: AuthRequest, res: Response) => {
+router.get('/users', authenticateToken, requireAnyRole(['admin', 'lead', 'coach', 'manager']), (req: AuthRequest, res: Response) => {
     try {
         const users = authService.getAllUsers();
         res.json({ users });
@@ -153,4 +157,36 @@ router.delete('/users/:id', authenticateToken, requireAdmin, async (req: AuthReq
     }
 });
 
-export default router; 
+// POST /api/auth/users/:id/password - Change user password
+router.post('/users/:id/password', authenticateToken, async (req: AuthRequest, res: Response) => {
+    try {
+        const targetUserId = parseInt(req.params.id);
+        if (isNaN(targetUserId)) {
+            return res.status(400).json({ error: 'Invalid user ID' });
+        }
+        // Allow only admin or the user themselves
+        if (req.user!.id !== targetUserId && !req.user!.is_admin) {
+            return res.status(403).json({ error: 'Forbidden' });
+        }
+
+        const { newPassword } = req.body;
+        if (typeof newPassword !== 'string' || newPassword.length < 6) {
+            return res.status(400).json({ error: 'Password must be at least 6 characters long' });
+        }
+
+        // Update password
+        const passwordHash = bcrypt.hashSync(newPassword, 12);
+        db.prepare('UPDATE users SET password_hash = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+            .run(passwordHash, targetUserId);
+
+        // Log password change
+        logUserAction.passwordChange(req.user!.id, targetUserId);
+
+        res.json({ message: 'Password changed successfully' });
+    } catch (error: any) {
+        logger.error('Change password error:', error);
+        res.status(500).json({ error: error.message || 'Failed to change password' });
+    }
+});
+
+export default router;

@@ -24,6 +24,38 @@
   let showOnlyMyTeam = false;
   let hideInactiveEngineers = true;
   
+  // Global dropdown management
+  let activeDropdownId: string | null = null;
+  
+  function toggleDropdown(dropdownId: string) {
+    // If this dropdown is already active, close it
+    if (activeDropdownId === dropdownId) {
+      const dropdown = document.getElementById(dropdownId);
+      if (dropdown) dropdown.classList.add('hidden');
+      activeDropdownId = null;
+      return;
+    }
+    
+    // Close any open dropdown
+    if (activeDropdownId) {
+      const dropdown = document.getElementById(activeDropdownId);
+      if (dropdown) dropdown.classList.add('hidden');
+    }
+    
+    // Open the new dropdown
+    const dropdown = document.getElementById(dropdownId);
+    if (dropdown) dropdown.classList.remove('hidden');
+    activeDropdownId = dropdownId;
+  }
+  
+  function closeAllDropdowns() {
+    if (activeDropdownId) {
+      const dropdown = document.getElementById(activeDropdownId);
+      if (dropdown) dropdown.classList.add('hidden');
+      activeDropdownId = null;
+    }
+  }
+  
   // Delete confirmation
   let deleteConfirmText = '';
   
@@ -52,16 +84,29 @@
         goto('/login');
       } else if (auth.isAuthenticated) {
         user = auth.user;
-        // Allow access for admin, lead, or coach users
-        if (!user?.is_lead && !user?.is_admin && !user?.is_coach) {
+        // Allow access for admin, manager, lead, or coach users
+        if (!user?.is_lead && !user?.is_admin && !user?.is_coach && !user?.is_manager) {
           goto('/dashboard');
         } else {
           loadData();
         }
       }
     });
+    
+    // Add document click handler to close dropdowns when clicking outside
+    document.addEventListener('click', (event) => {
+      const target = event.target as HTMLElement;
+      // Don't close if clicking inside a dropdown or on a dropdown toggle button
+      if (target.closest('.dropdown-menu') || target.closest('.dropdown-toggle')) {
+        return;
+      }
+      closeAllDropdowns();
+    });
 
-    return unsubscribe;
+    return () => {
+      unsubscribe();
+      document.removeEventListener('click', closeAllDropdowns);
+    };
   });
 
   async function loadData() {
@@ -76,7 +121,7 @@
 
       engineers = engineersResponse.engineers;
       coaches = usersResponse.users.filter(u => u.is_coach);
-      leads = usersResponse.users.filter(u => u.is_lead || u.is_admin); // Include admins in leads list
+      leads = usersResponse.users.filter(u => u.is_lead || u.is_admin || u.is_manager); // Include admins and managers in leads list
 
       // Load assignments for each engineer
       const assignmentPromises = engineers.map(engineer => 
@@ -282,6 +327,7 @@
     const matchesTeam = !showOnlyMyTeam || 
       !user?.is_lead || 
       user.is_admin || 
+      user.is_manager || 
       engineer.lead_user_id === user.id;
     
     // Active filter
@@ -309,7 +355,7 @@
 </script>
 
 <svelte:head>
-  <title>Team Management - KCS Portal</title>
+  <title>Engineers - KCS Portal</title>
 </svelte:head>
 
 {#if isLoading}
@@ -326,21 +372,24 @@
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="flex justify-between h-16">
           <div class="flex items-center space-x-4">
-            <a href="/dashboard" class="text-primary-600 hover:text-primary-700">
+            <a href="/dashboard" class="text-primary-600 hover:text-primary-700" aria-label="Back to Dashboard">
               <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
               </svg>
+              <span class="sr-only">Back to Dashboard</span>
             </a>
-            <h1 class="text-xl font-semibold text-gray-900">Team Management</h1>
+            <h1 class="text-xl font-semibold text-gray-900">Engineers</h1>
           </div>
           
           <div class="flex items-center space-x-4">
             <span class="text-sm text-gray-700">Welcome, {user.name}</span>
-            {#if user.is_admin}
+            {#if user?.is_admin}
               <span class="badge badge-admin">Admin</span>
-            {:else if user.is_lead}
+            {:else if user?.is_manager}
+              <span class="badge badge-manager">Manager</span>
+            {:else if user?.is_lead}
               <span class="badge badge-lead">Lead</span>
-            {:else if user.is_coach}
+            {:else if user?.is_coach}
               <span class="badge badge-coach">Coach</span>
             {/if}
             <button on:click={handleLogout} class="btn-secondary text-sm">Logout</button>
@@ -356,26 +405,28 @@
         <!-- Header with Actions -->
         <div class="flex justify-between items-center mb-6">
           <div>
-            <h2 class="text-2xl font-bold text-gray-900">Team Management</h2>
+            <h2 class="text-2xl font-bold text-gray-900">Engineers</h2>
             <p class="text-gray-600">Manage engineers and coach assignments</p>
           </div>
           <div class="flex space-x-3">
-            <button 
-              on:click={() => {
-                // Reset form and set default lead for non-admin users
-                newEngineer = { 
-                  name: '', 
-                  lead_user_id: user?.is_lead && !user?.is_admin ? user.id : undefined 
-                };
-                showCreateEngineerModal = true;
-              }}
-              class="btn-secondary"
-            >
-              <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-              </svg>
-              Add Engineer
-            </button>
+            {#if user?.is_admin || user?.is_manager}
+              <button 
+                on:click={() => {
+                  // Reset form and set default lead for non-admin users
+                  newEngineer = { 
+                    name: '', 
+                    lead_user_id: user?.is_lead && !user?.is_admin ? user.id : undefined 
+                  };
+                  showCreateEngineerModal = true;
+                }}
+                class="btn-primary"
+              >
+                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                </svg>
+                Add Engineer
+              </button>
+            {/if}
             <a href="/reports" class="btn-primary">
               <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -390,8 +441,9 @@
           <div class="px-6 py-4">
             <div class="flex flex-col sm:flex-row gap-4">
               <div class="flex-1">
-                <label class="block text-sm font-medium text-gray-700 mb-1">Search Engineers</label>
+                <label for="search-engineers" class="block text-sm font-medium text-gray-700 mb-1">Search Engineers</label>
                 <input 
+                  id="search-engineers"
                   type="text" 
                   bind:value={searchTerm}
                   placeholder="Search by name, lead, or coach..."
@@ -400,36 +452,40 @@
               </div>
               <div class="flex flex-col sm:flex-row gap-4 sm:items-end">
                 {#if user?.is_lead && !user?.is_admin}
-                  <label class="flex items-center">
+                  <div class="flex items-center">
                     <input 
+                      id="show-only-my-team"
                       type="checkbox" 
                       bind:checked={showOnlyMyTeam}
                       class="mr-2"
                     />
-                    <span class="text-sm text-gray-700">Show only my team</span>
-                  </label>
+                    <label for="show-only-my-team" class="text-sm text-gray-700">Show only my team</label>
+                  </div>
                 {/if}
-                <label class="flex items-center">
+                <div class="flex items-center">
                   <input 
+                    id="hide-inactive-engineers"
                     type="checkbox" 
                     bind:checked={hideInactiveEngineers}
                     class="mr-2"
                   />
-                  <span class="text-sm text-gray-700">Hide inactive engineers</span>
-                </label>
+                  <label for="hide-inactive-engineers" class="text-sm text-gray-700">Hide inactive engineers</label>
+                </div>
               </div>
             </div>
           </div>
         </div>
 
         <!-- Engineers List -->
-        <div class="card">
+        <div class="card w-full">
           <div class="px-6 py-4 border-b border-gray-200">
             <div class="flex justify-between items-center">
               <h3 class="text-lg font-medium text-gray-900">Engineers</h3>
-              <span class="text-sm text-gray-500">
-                {filteredEngineers.length} of {engineers.length} engineers
-              </span>
+              <div class="flex items-center">
+                <span class="text-sm text-gray-500">
+                  {filteredEngineers.length} of {engineers.length} engineers
+                </span>
+              </div>
             </div>
           </div>
           
@@ -440,20 +496,6 @@
               </svg>
               <h3 class="mt-2 text-sm font-medium text-gray-900">No engineers</h3>
               <p class="mt-1 text-sm text-gray-500">Get started by adding an engineer to your team.</p>
-              <div class="mt-6">
-                <button on:click={() => {
-                  newEngineer = { 
-                    name: '', 
-                    lead_user_id: user?.is_lead && !user?.is_admin ? user.id : undefined 
-                  };
-                  showCreateEngineerModal = true;
-                }} class="btn-primary">
-                  <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                  </svg>
-                  Add Engineer
-                </button>
-              </div>
             </div>
           {:else if filteredEngineers.length === 0}
             <div class="p-6 text-center">
@@ -464,16 +506,15 @@
               <p class="mt-1 text-sm text-gray-500">Try adjusting your search or filters.</p>
             </div>
           {:else}
-            <div class="overflow-x-auto">
+            <div class="overflow-x-auto w-full h-[600px] overflow-visible">
               <table class="min-w-full divide-y divide-gray-200">
                 <thead class="bg-gray-50">
                   <tr>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Engineer</th>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Lead</th>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Current Coach</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Assignment Date</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Coach</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Assignment date</th>
                   </tr>
                 </thead>
                 <tbody class="bg-white divide-y divide-gray-200">
@@ -510,55 +551,98 @@
                           <span class="text-sm text-gray-500">-</span>
                         {/if}
                       </td>
-                      <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        <div class="flex flex-col space-y-1">
-                          <div class="flex space-x-2">
-                            {#if activeAssignment}
+                       <td class="px-6 py-4 whitespace-nowrap text-sm font-medium overflow-visible">
+                        <div class="relative inline-block text-left overflow-visible">
+                          {#key engineer.id}
+                            {@const dropdownId = `dropdown-${engineer.id}`}
+                            
+                            <div>
                               <button 
-                                on:click={() => endAssignment(activeAssignment.id)}
-                                class="text-red-600 hover:text-red-900"
+                                type="button" 
+                                class="dropdown-toggle inline-flex justify-center w-full rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500" 
+                                aria-expanded="true" 
+                                aria-haspopup="true"
+                                on:click={() => toggleDropdown(dropdownId)}
                               >
-                                End Assignment
+                                Actions
+                                <svg class="-mr-1 ml-2 h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                                  <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
+                                </svg>
                               </button>
-                            {:else}
-                              <button 
-                                on:click={() => openAssignCoachModal(engineer)}
-                                class="text-primary-600 hover:text-primary-900"
-                              >
-                                Assign Coach
-                              </button>
-                            {/if}
-                            {#if user?.is_admin}
-                              <button 
-                                on:click={() => openAssignLeadModal(engineer)}
-                                class="text-blue-600 hover:text-blue-900"
-                              >
-                                Change Lead
-                              </button>
-                            {/if}
-                          </div>
-                          <div class="flex space-x-2">
-                            <a href="/reports/engineer/{engineer.id}" class="text-gray-600 hover:text-gray-900">
-                              View Stats
-                            </a>
-                            {#if user?.is_admin}
-                              {#if engineer.is_active}
-                                <button 
-                                  on:click={() => openDeleteEngineerModal(engineer)}
-                                  class="text-red-600 hover:text-red-900"
-                                >
-                                  Delete
-                                </button>
-                              {:else}
-                                <button 
-                                  on:click={() => openReactivateEngineerModal(engineer)}
-                                  class="text-green-600 hover:text-green-900"
-                                >
-                                  Reactivate
-                                </button>
-                              {/if}
-                            {/if}
-                          </div>
+                            </div>
+
+                            <div class="dropdown-menu hidden origin-top-right absolute right-0 mt-2 w-56 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 focus:outline-none z-50" role="menu" aria-orientation="vertical" id={dropdownId}>
+                              <div class="py-1" role="none">
+                                <!-- View Statistics Option -->
+                                <a href="/engineer/{engineer.id}/stats" class="text-gray-700 block px-4 py-2 text-sm hover:bg-gray-100" role="menuitem">
+                                  View Statistics
+                                </a>
+                                
+                                <!-- Change Lead Option - For Admin, Manager, or Lead of this engineer -->
+                                {#if user?.is_admin || user?.is_manager || (user?.is_lead && engineer.lead_user_id === user?.id)}
+                                  <button 
+                                    on:click={() => {
+                                      openAssignLeadModal(engineer);
+                                      closeAllDropdowns();
+                                    }}
+                                    class="text-gray-700 block w-full text-left px-4 py-2 text-sm hover:bg-gray-100" role="menuitem"
+                                  >
+                                    Change Lead
+                                  </button>
+                                {/if}
+                                
+                                <!-- Coach Assignment Options -->
+                                {#if user?.is_admin || user?.is_manager || (user?.is_lead && engineer.lead_user_id === user?.id)}
+                                  {#if activeAssignment}
+                                    <button 
+                                      on:click={() => {
+                                        endAssignment(activeAssignment.id);
+                                        closeAllDropdowns();
+                                      }}
+                                      class="text-gray-700 block w-full text-left px-4 py-2 text-sm hover:bg-gray-100" role="menuitem"
+                                    >
+                                      End Coach Assignment
+                                    </button>
+                                  {:else}
+                                    <button 
+                                      on:click={() => {
+                                        openAssignCoachModal(engineer);
+                                        closeAllDropdowns();
+                                      }}
+                                      class="text-gray-700 block w-full text-left px-4 py-2 text-sm hover:bg-gray-100" role="menuitem"
+                                    >
+                                      Assign Coach
+                                    </button>
+                                  {/if}
+                                {/if}
+                                
+                                <!-- Delete/Reactivate Engineer Option - For Admin and Manager only -->
+                                {#if user?.is_admin || user?.is_manager}
+                                  {#if engineer.is_active}
+                                    <button 
+                                      on:click={() => {
+                                        openDeleteEngineerModal(engineer);
+                                        closeAllDropdowns();
+                                      }}
+                                      class="text-red-600 block w-full text-left px-4 py-2 text-sm hover:bg-gray-100" role="menuitem"
+                                    >
+                                      Delete
+                                    </button>
+                                  {:else}
+                                    <button 
+                                      on:click={() => {
+                                        openReactivateEngineerModal(engineer);
+                                        closeAllDropdowns();
+                                      }}
+                                      class="text-green-600 block w-full text-left px-4 py-2 text-sm hover:bg-gray-100" role="menuitem"
+                                    >
+                                      Reactivate
+                                    </button>
+                                  {/if}
+                                {/if}
+                              </div>
+                            </div>
+                          {/key}
                         </div>
                       </td>
                     </tr>
@@ -601,8 +685,9 @@
           
           <form on:submit|preventDefault={createEngineer}>
             <div class="mb-4">
-              <label class="block text-sm font-medium text-gray-700 mb-1">Engineer Name</label>
+              <label for="engineer-name" class="block text-sm font-medium text-gray-700 mb-1">Engineer Name</label>
               <input 
+                id="engineer-name"
                 type="text" 
                 bind:value={newEngineer.name} 
                 required 
@@ -612,18 +697,18 @@
             </div>
             
             <div class="mb-4">
-              <label class="block text-sm font-medium text-gray-700 mb-1">Lead</label>
-              {#if user?.is_admin}
-                <select bind:value={newEngineer.lead_user_id} class="input">
+              <label for="lead-select" class="block text-sm font-medium text-gray-700 mb-1">Lead</label>
+              {#if user?.is_admin || user?.is_manager}
+                <select id="lead-select" bind:value={newEngineer.lead_user_id} class="input">
                   <option value={undefined}>Select Lead (Optional)</option>
                   {#each leads as lead}
                     <option value={lead.id}>{lead.name}</option>
                   {/each}
                 </select>
-              {:else if user?.is_lead}
-                <select bind:value={newEngineer.lead_user_id} class="input">
-                  <option value={user.id} selected>{user.name} (You)</option>
-                  {#each leads.filter(l => l.id !== user.id) as lead}
+              {:else if user?.is_lead && user}
+                <select id="lead-select" bind:value={newEngineer.lead_user_id} class="input">
+                  <option value={user?.id} selected>{user?.name} (You)</option>
+                  {#each leads.filter(l => l.id !== user?.id) as lead}
                     <option value={lead.id}>{lead.name}</option>
                   {/each}
                 </select>
@@ -659,8 +744,8 @@
           
           <form on:submit|preventDefault={assignCoach}>
             <div class="mb-4">
-              <label class="block text-sm font-medium text-gray-700 mb-1">Coach</label>
-              <select bind:value={newAssignment.coach_user_id} required class="input">
+              <label for="coach-select" class="block text-sm font-medium text-gray-700 mb-1">Coach</label>
+              <select id="coach-select" bind:value={newAssignment.coach_user_id} required class="input">
                 <option value={0}>Select Coach</option>
                 {#each coaches as coach}
                   <option value={coach.id}>{coach.name}</option>
@@ -669,8 +754,9 @@
             </div>
             
             <div class="mb-4">
-              <label class="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
+              <label for="start-date" class="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
               <input 
+                id="start-date"
                 type="date" 
                 bind:value={newAssignment.start_date} 
                 required 
@@ -705,8 +791,8 @@
           
           <form on:submit|preventDefault={assignLead}>
             <div class="mb-4">
-              <label class="block text-sm font-medium text-gray-700 mb-1">Lead</label>
-              <select bind:value={newLeadAssignment.lead_user_id} required class="input">
+              <label for="assign-lead-select" class="block text-sm font-medium text-gray-700 mb-1">Lead</label>
+              <select id="assign-lead-select" bind:value={newLeadAssignment.lead_user_id} required class="input">
                 <option value={0}>Select Lead</option>
                 {#each leads as lead}
                   <option value={lead.id}>{lead.name}</option>

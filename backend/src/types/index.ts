@@ -9,6 +9,7 @@ export interface User {
     is_coach: boolean;
     is_lead: boolean;
     is_admin: boolean;
+    is_manager: boolean;
     created_at: string;
     updated_at: string;
     deleted_at?: string; // For soft deletion
@@ -80,12 +81,14 @@ export interface CreateUserRequest {
     email: string;
     password: string;
     name: string;
+    role?: 'coach' | 'lead' | 'manager';
 }
 
 export interface UpdateUserRolesRequest {
     is_coach?: boolean;
     is_lead?: boolean;
     is_admin?: boolean;
+    is_manager?: boolean;
 }
 
 export interface CreateEngineerRequest {
@@ -185,15 +188,22 @@ export interface EvaluationStats {
     article_created_percentage: number;
     create_opportunity_percentage: number;
     relevant_link_percentage: number;
+    link_rate: number;
+    average_score: number;
 }
 
 export interface ReportFilters {
     engineer_id?: number;
     engineer_ids?: number[];
     coach_user_id?: number;
+    coach_user_ids?: number[];
     lead_user_id?: number;
+    lead_user_ids?: number[];
     start_date?: string;
     end_date?: string;
     quarter?: string;
     year?: number;
+    years?: number[];
+    month?: number;
+    months?: number[];
 } 

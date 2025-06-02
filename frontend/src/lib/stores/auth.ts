@@ -1,6 +1,6 @@
 import { writable } from 'svelte/store';
 import { browser } from '$app/environment';
-import type { User } from '../types';
+import type { User, UserRole } from '../types';
 import apiService from '../api';
 
 interface AuthState {
@@ -94,11 +94,11 @@ function createAuthStore() {
         },
 
         // Register action
-        register: async (email: string, password: string, name: string) => {
+        register: async (email: string, password: string, name: string, role: UserRole) => {
             update(state => ({ ...state, isLoading: true }));
 
             try {
-                const response = await apiService.register({ email, password, name });
+                const response = await apiService.register({ email, password, name, role });
 
                 set({
                     user: response.user,
@@ -145,7 +145,7 @@ function createAuthStore() {
         },
 
         // Check if user has specific role
-        hasRole: (role: 'admin' | 'lead' | 'coach'): boolean => {
+        hasRole: (role: 'admin' | 'lead' | 'coach' | 'manager'): boolean => {
             const currentState = get(authStore);
             if (!currentState.user) return false;
 
@@ -156,13 +156,15 @@ function createAuthStore() {
                     return currentState.user.is_lead;
                 case 'coach':
                     return currentState.user.is_coach;
+                case 'manager':
+                    return currentState.user.is_manager;
                 default:
                     return false;
             }
         },
 
         // Check if user has any of the specified roles
-        hasAnyRole: (roles: ('admin' | 'lead' | 'coach')[]): boolean => {
+        hasAnyRole: (roles: ('admin' | 'lead' | 'coach' | 'manager')[]): boolean => {
             return roles.some(role => authStore.hasRole(role));
         },
     };
