@@ -1,6 +1,7 @@
 <script lang="ts">
     import { reportStore, selectedEngineers } from "$lib/stores/reports";
     import type { EvaluationStats } from "$lib/types";
+    import RadarChart from './RadarChart.svelte';
 
     // Helper function to format percentage
     function formatPercentage(value: number | undefined): string {
@@ -87,13 +88,24 @@
 <div class="card p-6 mb-8">
     <h2 class="text-xl font-semibold text-gray-900 mb-4">Overall Statistics</h2>
     {#if leadNames.length}
-        <div class="mb-6 p-4 bg-blue-50 border border-blue-200 rounded">
-            <p class="text-sm text-blue-700">
-                Summary for these leads: {leadNames.join(", ")}
-            </p>
-            <p class="mt-1 text-sm text-gray-600">
-                Engineers: {engineerNames.join(", ")}
-            </p>
+        <div class="mb-6 grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
+            <div class="p-4 bg-blue-50 border border-blue-200 rounded">
+                <p class="text-sm text-blue-700">
+                    Summary for these leads: {leadNames.join(", ")}
+                </p>
+                <p class="mt-1 text-sm text-gray-600">
+                    Engineers: {engineerNames.join(", ")}
+                </p>
+            </div>
+            <div class="p-4 bg-white border border-gray-200 rounded">
+                <RadarChart
+                    labels={[ 'Link Rate', 'Contribution Rate', 'Accuracy Rate', 'Metric 4', 'Metric 5', 'Metric 6' ]}
+                    teamData={[ formatPercentage(getLinkRate(stats!) as any)?.replace('%','') , formatPercentage(getContributionRate(stats!) * 100)?.replace('%',''), formatPercentage(getAccuracyRate(stats!) * 100)?.replace('%',''), 0, 0, 0 ]}
+                    personalData={[ getLinkRate(stats!), getContributionRate(stats!) * 100, getAccuracyRate(stats!) * 100, 0, 0, 0 ]}
+                    width={500}
+                    height={500}
+                />
+            </div>
         </div>
     {/if}
     {#if $reportStore.overallStats}

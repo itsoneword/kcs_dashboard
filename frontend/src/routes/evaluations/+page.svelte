@@ -60,16 +60,56 @@
   // Excel Import modal
   let showImportModal = false;
 
+  // Dropdown management for actions menu
+  let activeDropdownId: string | null = null;
+
+  function toggleDropdown(dropdownId: string) {
+    if (activeDropdownId && activeDropdownId !== dropdownId) {
+      const prev = document.getElementById(activeDropdownId);
+      prev?.classList.add("hidden");
+    }
+    const el = document.getElementById(dropdownId);
+    if (el) {
+      el.classList.toggle("hidden");
+      activeDropdownId = el.classList.contains("hidden") ? null : dropdownId;
+    }
+  }
+
+  function closeAllDropdowns() {
+    if (activeDropdownId) {
+      const el = document.getElementById(activeDropdownId);
+      el?.classList.add("hidden");
+      activeDropdownId = null;
+    }
+  }
+
   // Available engineers for current user (for create evaluation)
   let availableEngineers: Engineer[] = [];
 
-  onMount(async () => {
+  onMount(() => {
     // Parse URL parameters on mount
     parseUrlParameters();
 
     // Add a small delay to ensure parsing is complete, then load data
-    await new Promise((resolve) => setTimeout(resolve, 100));
-    loadDataWithMultipleMonths();
+    setTimeout(() => {
+      loadDataWithMultipleMonths().catch(console.error);
+    }, 100);
+
+    // Close dropdowns when clicking outside
+    const handleClick = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (
+        target.closest(".dropdown-menu") ||
+        target.closest(".dropdown-toggle")
+      ) {
+        return;
+      }
+      closeAllDropdowns();
+    };
+    document.addEventListener("click", handleClick);
+    return () => {
+      document.removeEventListener("click", handleClick);
+    };
   });
 
   // Reload available engineers when user changes
@@ -479,7 +519,7 @@
 
     <!-- Evaluations Table -->
     <div
-      class="container mx-auto px-4 bg-white rounded-lg shadow-md overflow-hidden mt-6"
+      class="container mx-auto px-4 bg-white rounded-lg shadow-md overflow-visible mt-6"
     >
       {#if isLoading}
         <div class="flex justify-center items-center py-8">
@@ -493,7 +533,7 @@
             creating one!{/if}
         </div>
       {:else}
-        <div class="overflow-x-auto">
+        <div class="overflow-x-auto overflow-y-visible">
           <table class="min-w-full divide-y divide-gray-200">
             <thead class="bg-gray-50">
               <tr>
@@ -559,7 +599,9 @@
                       {evaluation.case_count || 0}
                     </div>
                   </td>
-                  <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                  <td
+                    class="px-6 py-4 whitespace-nowrap text-sm font-medium overflow-visible"
+                  >
                     <div class="flex items-center gap-2">
                       <button
                         on:click={() => viewEvaluation(evaluation.id)}
@@ -568,24 +610,38 @@
                         View Details
                       </button>
                       {#if user?.is_admin || user?.is_coach || user?.is_manager}
-                        <details class="relative">
-                          <summary
-                            class="cursor-pointer text-gray-600 hover:text-gray-900"
-                            >⋮</summary
+                        {#key evaluation.id}
+                          {@const dropdownId = `eval-dropdown-${evaluation.id}`}
+                          <div
+                            class="relative inline-block text-left overflow-visible"
                           >
-                          <ul
-                            class="absolute right-0 mt-1 bg-white border border-gray-200 rounded shadow text-sm w-32"
-                          >
-                            <li>
+                            <button
+                              class="dropdown-toggle cursor-pointer text-gray-600 hover:text-gray-900 px-1"
+                              aria-expanded={dropdownId === activeDropdownId}
+                              aria-haspopup="true"
+                              on:click={() => toggleDropdown(dropdownId)}
+                            >
+                              ⋮
+                            </button>
+                            <div
+                              id={dropdownId}
+                              class="dropdown-menu hidden origin-top-right absolute right-0 mt-1 bg-white border border-gray-200 rounded shadow text-sm w-32 z-50"
+                              role="menu"
+                              aria-orientation="vertical"
+                            >
                               <button
-                                on:click={() => removeEvaluation(evaluation.id)}
+                                on:click={() => {
+                                  removeEvaluation(evaluation.id);
+                                  closeAllDropdowns();
+                                }}
                                 class="block w-full px-4 py-2 hover:bg-gray-100 text-left text-red-600"
+                                role="menuitem"
                               >
                                 Delete evaluation
                               </button>
-                            </li>
-                          </ul>
-                        </details>
+                            </div>
+                          </div>
+                        {/key}
                       {/if}
                     </div>
                   </td>

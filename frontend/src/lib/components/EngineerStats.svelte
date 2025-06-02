@@ -1,6 +1,7 @@
 <script lang="ts">
     import { reportStore } from "$lib/stores/reports";
     import type { Engineer, EvaluationStats } from "$lib/types";
+    import RadarChart from './RadarChart.svelte';
 
     export let engineer: Engineer;
 
@@ -94,6 +95,9 @@
             ? (stats.article_linked_count / stats.kb_potential_count) * 100
             : 0;
     }
+
+    // Use overall stats for team comparison
+    $: teamStats = $reportStore.overallStats;
 </script>
 
 <div class="card p-6 mb-8">
@@ -114,7 +118,15 @@
     </div>
 
     {#if stats}
-        <!-- Top-level rates -->
+        <div class="mb-6">
+            <RadarChart
+                labels={[ 'Link Rate', 'Contribution Rate', 'Accuracy Rate', 'Metric 4', 'Metric 5', 'Metric 6' ]}
+                teamData={[ getLinkRate(teamStats!), getContributionRate(teamStats!) * 100, getAccuracyRate(teamStats!) * 100, 0, 0, 0 ]}
+                personalData={[ getLinkRate(stats), getContributionRate(stats) * 100, getAccuracyRate(stats) * 100, 0, 0, 0 ]}
+                width={300}
+                height={300}
+            />
+        </div>
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
             <!-- Link Rate -->
             <div class="bg-white rounded-lg border border-gray-200 p-4">
