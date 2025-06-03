@@ -34,7 +34,8 @@ router.post('/login', async (req, res: Response) => {
     try {
         const { error, value } = loginSchema.validate(req.body);
         if (error) {
-            return res.status(400).json({ error: error.details[0].message });
+            res.status(400).json({ error: error.details[0].message });
+            return;
         }
 
         const credentials: LoginRequest = value;
@@ -57,7 +58,8 @@ router.post('/register', async (req, res: Response) => {
     try {
         const { error, value } = registerSchema.validate(req.body);
         if (error) {
-            return res.status(400).json({ error: error.details[0].message });
+            res.status(400).json({ error: error.details[0].message });
+            return;
         }
 
         const userData: CreateUserRequest = value;
@@ -115,12 +117,14 @@ router.put('/users/:id/roles', authenticateToken, requireAdmin, async (req: Auth
     try {
         const { error, value } = updateRolesSchema.validate(req.body);
         if (error) {
-            return res.status(400).json({ error: error.details[0].message });
+            res.status(400).json({ error: error.details[0].message });
+            return;
         }
 
         const targetUserId = parseInt(req.params.id);
         if (isNaN(targetUserId)) {
-            return res.status(400).json({ error: 'Invalid user ID' });
+            res.status(400).json({ error: 'Invalid user ID' });
+            return;
         }
 
         const roles: UpdateUserRolesRequest = value;
@@ -142,7 +146,8 @@ router.delete('/users/:id', authenticateToken, requireAdmin, async (req: AuthReq
     try {
         const targetUserId = parseInt(req.params.id);
         if (isNaN(targetUserId)) {
-            return res.status(400).json({ error: 'Invalid user ID' });
+            res.status(400).json({ error: 'Invalid user ID' });
+            return;
         }
 
         await authService.deleteUser(req.user!.id, targetUserId);
@@ -162,16 +167,19 @@ router.post('/users/:id/password', authenticateToken, async (req: AuthRequest, r
     try {
         const targetUserId = parseInt(req.params.id);
         if (isNaN(targetUserId)) {
-            return res.status(400).json({ error: 'Invalid user ID' });
+            res.status(400).json({ error: 'Invalid user ID' });
+            return;
         }
         // Allow only admin or the user themselves
         if (req.user!.id !== targetUserId && !req.user!.is_admin) {
-            return res.status(403).json({ error: 'Forbidden' });
+            res.status(403).json({ error: 'Forbidden' });
+            return;
         }
 
         const { newPassword } = req.body;
         if (typeof newPassword !== 'string' || newPassword.length < 6) {
-            return res.status(400).json({ error: 'Password must be at least 6 characters long' });
+            res.status(400).json({ error: 'Password must be at least 6 characters long' });
+            return;
         }
 
         // Update password

@@ -24,6 +24,6 @@ services:
       dockerfile: Dockerfile
     container_name: kcs-portal-frontend
     ports:
-      - "4173:4173"
+      - "5173:4173"
     depends_on:
       - backend 

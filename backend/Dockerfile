@@ -3,16 +3,19 @@
 # Builder stage
 FROM node:18-alpine AS builder
 WORKDIR /usr/src/app
+RUN apk add --no-cache python3 build-base sqlite-dev
 # Install dependencies
 COPY package.json package-lock.json tsconfig.json ./
 RUN npm ci
 # Copy source files
 COPY . .
-# Build the project and copy required assets into dist
-RUN npm run build \
-    && mkdir -p dist/database \
-    && cp src/database/schema.sql dist/database/schema.sql \
-    && cp -r src/database/migrations dist/database/migrations
+# Build the project
+RUN npm run build
+
+# Copy database assets into dist
+RUN mkdir -p dist/database
+RUN cp src/database/schema.sql dist/database/schema.sql
+RUN cp -r src/database/migrations dist/database/migrations
 
 # Production stage
 FROM node:18-alpine AS production
