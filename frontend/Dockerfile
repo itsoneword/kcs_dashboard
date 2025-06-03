@@ -14,9 +14,9 @@ FROM node:18-alpine AS production
 WORKDIR /usr/src/app
 # Install a lightweight static server
 RUN npm install -g serve
-# Copy the build output
+# Copy the static build output
 COPY --from=builder /usr/src/app/build ./build
 # Expose port for static server
 EXPOSE 4173
 # Serve the build folder
-CMD ["serve", "-s", "build", "-l", "4173"] 
+CMD ["serve", "-s", "build", "-l", "5173"] 
