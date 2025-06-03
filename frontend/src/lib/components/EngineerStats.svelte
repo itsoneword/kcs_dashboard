@@ -123,8 +123,8 @@
                 labels={[ 'Link Rate', 'Contribution Rate', 'Accuracy Rate', 'Metric 4', 'Metric 5', 'Metric 6' ]}
                 teamData={[ getLinkRate(teamStats!), getContributionRate(teamStats!) * 100, getAccuracyRate(teamStats!) * 100, 0, 0, 0 ]}
                 personalData={[ getLinkRate(stats), getContributionRate(stats) * 100, getAccuracyRate(stats) * 100, 0, 0, 0 ]}
-                width={300}
-                height={300}
+                width={500}
+                height={500}
             />
         </div>
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6">

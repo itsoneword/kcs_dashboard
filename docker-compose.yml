@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+
+  backend:
+    build:
+      context: ./kcs-portal/backend
+      dockerfile: Dockerfile
+    container_name: kcs-portal-backend
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./kcs-portal/database:/usr/src/app/database
+      - ./kcs-portal/logs:/usr/src/app/logs
+    env_file:
+      - ./kcs-portal/backend/.env
+    environment:
+      # Ensure NODE_ENV is production if not set in env file
+      NODE_ENV: production
+
+  frontend:
+    build:
+      context: ./kcs-portal/frontend
+      dockerfile: Dockerfile
+    container_name: kcs-portal-frontend
+    ports:
+      - "4173:4173"
+    depends_on:
+      - backend 

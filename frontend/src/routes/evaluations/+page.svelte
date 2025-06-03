@@ -519,7 +519,7 @@
 
     <!-- Evaluations Table -->
     <div
-      class="container mx-auto px-4 bg-white rounded-lg shadow-md overflow-visible mt-6"
+      class="container mx-auto px-4 bg-white rounded-lg shadow-md overflow-visible mt-6 max-h-[600px] overflow-visible"
     >
       {#if isLoading}
         <div class="flex justify-center items-center py-8">
@@ -533,7 +533,7 @@
             creating one!{/if}
         </div>
       {:else}
-        <div class="overflow-x-auto overflow-y-visible">
+        <div class="overflow-x-auto overflow-visible">
           <table class="min-w-full divide-y divide-gray-200">
             <thead class="bg-gray-50">
               <tr>

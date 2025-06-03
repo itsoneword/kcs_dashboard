@@ -477,7 +477,7 @@
         </div>
 
         <!-- Engineers List -->
-        <div class="card w-full">
+        <div class="card overflow-visible mb-8 min-h-[600px] w-full">
           <div class="px-6 py-4 border-b border-gray-200">
             <div class="flex justify-between items-center">
               <h3 class="text-lg font-medium text-gray-900">Engineers</h3>
