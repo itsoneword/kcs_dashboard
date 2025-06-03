@@ -2,10 +2,10 @@
 set -e
 
 # Ensure .env exists for backend
-if [ ! -f kcs-portal/backend/.env ]; then
+if [ ! -f backend/.env ]; then
   echo "Creating backend .env from example"
-  cp kcs-portal/backend/env.example kcs-portal/backend/.env
-  echo "Please review and update kcs-portal/backend/.env before continuing."
+  cp backend/env.example backend/.env
+  echo "Please review and update backend/.env before continuing."
 fi
 
 # Build and start services
