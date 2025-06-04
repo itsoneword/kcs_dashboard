@@ -23,5 +23,5 @@ EXPOSE 4173
 ENV HOST=0.0.0.0
 ENV PORT=5173
 
-# Serve the build folder, binding to the specified HOST and PORT
-CMD ["sh", "-c", "serve -s build -l $HOST:$PORT"] 
+# Serve the build folder, binding to the specified HOST and PORT using full URL
+CMD ["sh", "-c", "serve -s build -l http://$HOST:$PORT"] 

@@ -1,15 +1,20 @@
 #!/usr/bin/env bash
 set -e
 
-# Ensure .env exists for backend
-if [ ! -f backend/.env ]; then
-  echo "Creating backend .env from example"
-  cp backend/env.example backend/.env
-  echo "Please review and update backend/.env before continuing."
+# Ensure root .env exists
+if [ ! -f .env ]; then
+  echo "Creating root .env from backend/env.example"
+  cp backend/env.example .env
+  echo "" >> .env
+  echo "HOST=0.0.0.0" >> .env
+  echo "BACKEND_PORT=3000" >> .env
+  echo "FRONTEND_PORT=5173" >> .env
+  echo "FRONTEND_URL=http://localhost:\\${FRONTEND_PORT}" >> .env
+  echo "Please review root .env before continuing."
 fi
 
-# Build and start services
-docker-compose up -d --build
+# Build and start services using root .env
+docker-compose --env-file .env up -d --build
 
 # Show status
-docker-compose ps 
+docker-compose --env-file .env ps 
