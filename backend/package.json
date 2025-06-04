@@ -10,7 +10,8 @@
         "db:migrate": "tsx src/database/migrate.ts",
         "db:seed": "tsx src/database/seed.ts",
         "reset-password": "tsx src/utils/resetPassword.ts",
-        "check-user": "tsx src/utils/checkUser.ts"
+        "check-user": "tsx src/utils/checkUser.ts",
+        "seed:prod": "node dist/database/seed.js"
     },
     "dependencies": {
         "@azure/msal-node": "^3.5.3",
