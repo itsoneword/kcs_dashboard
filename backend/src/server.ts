@@ -36,9 +36,15 @@ const getAllowedOrigins = (): string[] => {
 // Security middleware
 app.use(helmet());
 
-// CORS configuration
+// CORS configuration: dynamically reflect request origin to support changing server IPs/DNS
 app.use(cors({
-    origin: getAllowedOrigins(),
+    origin: (origin, callback) => {
+        // allow non-browser tools or missing origin
+        if (!origin) return callback(null, true);
+
+        // echo back request origin to allow dynamic hosts/IPs
+        return callback(null, true);
+    },
     credentials: true
 }));
 
