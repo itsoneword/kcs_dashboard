@@ -49,6 +49,12 @@ Backend route handlers live in `backend/src/routes`, and frontend API calls are 
 - **is_lead**: Team management, engineer assignments  
 - **is_coach**: Create and manage evaluations
 - **Default**: Basic authenticated access
+- **accounts_list**: current implementations also supports seeding accounts from accounts_list.md file in root dir. File format is: 
+
+    coaches:
+...
+   leads:
+...
 
 #### Access Control Matrix
 | Feature | Admin | Manager | Lead | Coach | User |

@@ -12,17 +12,17 @@ services:
     volumes:
       - ./database:/usr/src/app/database
       - ./logs:/usr/src/app/logs
-      # Optional accounts list, will trigger seeding if present
-      - ./accounts_list.md:/usr/src/app/accounts_list.md:ro
+      # Optional accounts list; mount at container root so seed script can find it
+      - ./accounts_list.md:/usr/src/accounts_list.md:ro
     env_file:
       - ./.env
     environment:
       - NODE_ENV=production
       - PORT=${BACKEND_PORT}
       - HOST=${HOST}
-    # If accounts_list.md is mounted, seed the DB before starting
+    # Check for accounts_list.md; seed DB if present, otherwise skip
     command: >
-      sh -c "if [ -f /usr/src/app/accounts_list.md ]; then npm run seed:prod; fi && node dist/server.js"
+      sh -c "if [ -f /usr/src/accounts_list.md ]; then echo 'Found accounts_list.md, seeding DB...' && npm run seed:prod; else echo 'No accounts_list.md found, skipping DB seed'; fi && node dist/server.js"
 
   frontend:
     build:
