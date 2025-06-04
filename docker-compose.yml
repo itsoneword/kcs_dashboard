@@ -8,15 +8,16 @@ services:
       dockerfile: Dockerfile
     container_name: kcs-portal-backend
     ports:
-      - "3000:3000"
+      - "${BACKEND_PORT}:${BACKEND_PORT}"
     volumes:
       - ./database:/usr/src/app/database
       - ./logs:/usr/src/app/logs
     env_file:
-      - ./backend/.env
+      - ./.env
     environment:
-      # Ensure NODE_ENV is production if not set in env file
-      NODE_ENV: production
+      - NODE_ENV=production
+      - PORT=${BACKEND_PORT}
+      - HOST=${HOST}
 
   frontend:
     build:
@@ -24,6 +25,11 @@ services:
       dockerfile: Dockerfile
     container_name: kcs-portal-frontend
     ports:
-      - "5173:4173"
+      - "${FRONTEND_PORT}:${FRONTEND_PORT}"
+    env_file:
+      - ./.env
+    environment:
+      - PORT=${FRONTEND_PORT}
+      - HOST=${HOST}
     depends_on:
-      - backend 
+      - backend

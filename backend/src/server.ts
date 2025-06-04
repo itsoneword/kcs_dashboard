@@ -20,7 +20,8 @@ import adminRoutes from './routes/admin';
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = parseInt(process.env.PORT || '3000', 10);
+const HOST = process.env.HOST || '0.0.0.0';
 
 // Parse allowed origins from environment variable
 const getAllowedOrigins = (): string[] => {
@@ -151,8 +152,8 @@ process.on('SIGINT', () => {
 });
 
 // Start server
-app.listen(PORT, () => {
-    logger.info(`KCS Portal Backend server running on port ${PORT}`);
+app.listen(PORT, HOST, () => {
+    logger.info(`KCS Portal Backend server running at http://${HOST}:${PORT}`);
     logger.info(`Environment: ${process.env.NODE_ENV || 'development'}`);
     logger.info(`Database health: ${databaseManager.isHealthy() ? 'OK' : 'ERROR'}`);
 });
