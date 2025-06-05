@@ -21,7 +21,8 @@ const admin_1 = __importDefault(require("./routes/admin"));
 // Load environment variables
 dotenv_1.default.config();
 const app = (0, express_1.default)();
-const PORT = process.env.PORT || 3000;
+const PORT = parseInt(process.env.PORT || '3000', 10);
+const HOST = process.env.HOST || '0.0.0.0';
 // Parse allowed origins from environment variable
 const getAllowedOrigins = () => {
     const frontendUrl = process.env.FRONTEND_URL;
@@ -33,9 +34,15 @@ const getAllowedOrigins = () => {
 };
 // Security middleware
 app.use((0, helmet_1.default)());
-// CORS configuration
+// CORS configuration: dynamically reflect request origin to support changing server IPs/DNS
 app.use((0, cors_1.default)({
-    origin: getAllowedOrigins(),
+    origin: (origin, callback) => {
+        // allow non-browser tools or missing origin
+        if (!origin)
+            return callback(null, true);
+        // echo back request origin to allow dynamic hosts/IPs
+        return callback(null, true);
+    },
     credentials: true
 }));
 // General rate limiting - more lenient
@@ -134,8 +141,8 @@ process.on('SIGINT', () => {
     process.exit(0);
 });
 // Start server
-app.listen(PORT, () => {
-    logger_1.default.info(`KCS Portal Backend server running on port ${PORT}`);
+app.listen(PORT, HOST, () => {
+    logger_1.default.info(`KCS Portal Backend server running at http://${HOST}:${PORT}`);
     logger_1.default.info(`Environment: ${process.env.NODE_ENV || 'development'}`);
     logger_1.default.info(`Database health: ${database_1.default.isHealthy() ? 'OK' : 'ERROR'}`);
 });

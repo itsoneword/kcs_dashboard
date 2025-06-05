@@ -3,11 +3,8 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-const better_sqlite3_1 = __importDefault(require("better-sqlite3"));
-const path_1 = __importDefault(require("path"));
+const database_1 = require("../database/database");
 const logger_1 = __importDefault(require("../utils/logger"));
-const dbPath = path_1.default.join(__dirname, '../..', process.env.DATABASE_PATH || '../database/kcs_portal.db');
-const db = new better_sqlite3_1.default(dbPath);
 class EngineerService {
     // Get all engineers with optional filtering
     getAllEngineers(leadUserId, isActive) {
@@ -33,7 +30,7 @@ class EngineerService {
                 params.push(isActive ? 1 : 0);
             }
             query += ' ORDER BY e.name ASC';
-            const stmt = db.prepare(query);
+            const stmt = database_1.db.prepare(query);
             return stmt.all(...params);
         }
         catch (error) {
@@ -44,7 +41,7 @@ class EngineerService {
     // Get engineer by ID
     getEngineerById(id) {
         try {
-            const stmt = db.prepare(`
+            const stmt = database_1.db.prepare(`
                 SELECT 
                     e.*,
                     u.name as lead_name,
@@ -65,7 +62,7 @@ class EngineerService {
     // Create new engineer
     createEngineer(data) {
         try {
-            const stmt = db.prepare(`
+            const stmt = database_1.db.prepare(`
                 INSERT INTO engineers (name, lead_user_id)
                 VALUES (?, ?)
             `);
@@ -98,7 +95,7 @@ class EngineerService {
                 throw new Error('No updates provided');
             }
             params.push(id);
-            const stmt = db.prepare(`
+            const stmt = database_1.db.prepare(`
                 UPDATE engineers
                 SET ${updates.join(', ')}
                 WHERE id = ?
@@ -114,7 +111,7 @@ class EngineerService {
     // Get engineers assigned to a specific coach
     getEngineersByCoach(coachUserId) {
         try {
-            const stmt = db.prepare(`
+            const stmt = database_1.db.prepare(`
                 SELECT DISTINCT
                     e.*,
                     u.name as lead_name,
@@ -136,7 +133,7 @@ class EngineerService {
     // Get engineers by lead (for team management)
     getEngineersByLead(leadUserId) {
         try {
-            const stmt = db.prepare(`
+            const stmt = database_1.db.prepare(`
                 SELECT 
                     e.*,
                     u.name as lead_name,
@@ -175,7 +172,7 @@ class EngineerService {
                 params.push(leadUserId);
             }
             query += ' ORDER BY e.name ASC LIMIT 20';
-            const stmt = db.prepare(query);
+            const stmt = database_1.db.prepare(query);
             return stmt.all(...params);
         }
         catch (error) {

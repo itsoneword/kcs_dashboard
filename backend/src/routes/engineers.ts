@@ -1,7 +1,7 @@
 import { Router, Response, NextFunction } from 'express';
 import engineerService from '../services/engineerService';
 import coachAssignmentService from '../services/coachAssignmentService';
-import { AuthRequestParams, AuthRequestQuery, AuthRequestBody, CreateEngineerRequest, UpdateEngineerRequest, CreateCoachAssignmentRequest } from '../types';
+import { AuthRequest, CreateEngineerRequest, UpdateEngineerRequest, CreateCoachAssignmentRequest } from '../types';
 import { authenticateToken, requireAnyRole, requireAdmin } from '../middleware/auth';
 import logger, { logUserAction } from '../utils/logger';
 import Joi from 'joi';
@@ -27,7 +27,7 @@ const createAssignmentSchema = Joi.object({
 });
 
 // GET /api/engineers - Get all engineers (filtered by role)
-router.get('/', authenticateToken, (req: AuthRequestParams<{}>, res: Response, next: NextFunction): void => {
+router.get('/', authenticateToken, (req: AuthRequest, res: Response, next: NextFunction): void => {
     try {
         const user = req.user!;
         let engineers;
@@ -58,7 +58,7 @@ router.get('/', authenticateToken, (req: AuthRequestParams<{}>, res: Response, n
 });
 
 // GET /api/engineers/for-evaluation - Get engineers available for evaluation creation
-router.get('/for-evaluation', authenticateToken, (req: AuthRequestParams<{}>, res: Response, next: NextFunction): void => {
+router.get('/for-evaluation', authenticateToken, (req: AuthRequest, res: Response, next: NextFunction): void => {
     try {
         const user = req.user!;
         let engineers;
@@ -79,7 +79,7 @@ router.get('/for-evaluation', authenticateToken, (req: AuthRequestParams<{}>, re
 });
 
 // GET /api/engineers/by-coach/:coachId - Get engineers assigned to a specific coach
-router.get('/by-coach/:coachId', authenticateToken, (req: AuthRequestParams<{ coachId: string }>, res: Response, next: NextFunction): void => {
+router.get('/by-coach/:coachId', authenticateToken, (req: AuthRequest, res: Response, next: NextFunction): void => {
     try {
         const user = req.user!;
         const coachId = parseInt(req.params.coachId);
@@ -104,7 +104,7 @@ router.get('/by-coach/:coachId', authenticateToken, (req: AuthRequestParams<{ co
 });
 
 // GET /api/engineers/by-lead/:leadId - Get engineers assigned to a specific lead
-router.get('/by-lead/:leadId', authenticateToken, (req: AuthRequestParams<{ leadId: string }>, res: Response, next: NextFunction): void => {
+router.get('/by-lead/:leadId', authenticateToken, (req: AuthRequest, res: Response, next: NextFunction): void => {
     try {
         const user = req.user!;
         const leadId = parseInt(req.params.leadId);
@@ -129,7 +129,7 @@ router.get('/by-lead/:leadId', authenticateToken, (req: AuthRequestParams<{ lead
 });
 
 // GET /api/engineers/search - Search engineers by name
-router.get('/search', authenticateToken, (req: AuthRequestQuery<{ q: string }>, res: Response, next: NextFunction): void => {
+router.get('/search', authenticateToken, (req: AuthRequest, res: Response, next: NextFunction): void => {
     try {
         const user = req.user!;
         const { q: searchTerm } = req.query;
@@ -161,7 +161,7 @@ router.get('/search', authenticateToken, (req: AuthRequestQuery<{ q: string }>, 
 });
 
 // GET /api/engineers/:id - Get engineer by ID
-router.get('/:id', authenticateToken, (req: AuthRequestParams<{ id: string }>, res: Response, next: NextFunction): void => {
+router.get('/:id', authenticateToken, (req: AuthRequest, res: Response, next: NextFunction): void => {
     try {
         const engineerId = parseInt(req.params.id);
         if (isNaN(engineerId)) {
@@ -208,7 +208,7 @@ router.get('/:id', authenticateToken, (req: AuthRequestParams<{ id: string }>, r
 });
 
 // POST /api/engineers - Create new engineer (admin , leads, managers only)
-router.post('/', authenticateToken, async (req: AuthRequestBody<CreateEngineerRequest>, res: Response, next: NextFunction): Promise<void> => {
+router.post('/', authenticateToken, async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
         const user = req.user!;
 
@@ -246,7 +246,7 @@ router.post('/', authenticateToken, async (req: AuthRequestBody<CreateEngineerRe
 });
 
 // PUT /api/engineers/:id - Update engineer (admin , leads, managers only)
-router.put('/:id', authenticateToken, async (req: AuthRequestParams<{ id: string }> & AuthRequestBody<UpdateEngineerRequest>, res: Response, next: NextFunction): Promise<void> => {
+router.put('/:id', authenticateToken, async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
         const user = req.user!;
 
@@ -300,7 +300,7 @@ router.put('/:id', authenticateToken, async (req: AuthRequestParams<{ id: string
 // Coach Assignment Routes
 
 // GET /api/engineers/assignments - Get all coach assignments (filtered by role)
-router.get('/assignments', authenticateToken, (req: AuthRequestParams<{}>, res: Response, next: NextFunction): void => {
+router.get('/assignments', authenticateToken, (req: AuthRequest, res: Response, next: NextFunction): void => {
     try {
         const user = req.user!;
         let assignments;
@@ -322,7 +322,7 @@ router.get('/assignments', authenticateToken, (req: AuthRequestParams<{}>, res: 
 });
 
 // GET /api/engineers/:id/assignments - Get assignments for engineer
-router.get('/:id/assignments', authenticateToken, (req: AuthRequestParams<{ id: string }>, res: Response, next: NextFunction): void => {
+router.get('/:id/assignments', authenticateToken, (req: AuthRequest, res: Response, next: NextFunction): void => {
     try {
         const engineerId = parseInt(req.params.id);
         if (isNaN(engineerId)) {
@@ -339,7 +339,7 @@ router.get('/:id/assignments', authenticateToken, (req: AuthRequestParams<{ id: 
 });
 
 // POST /api/engineers/assignments - Create coach assignment (admin and leads only)
-router.post('/assignments', authenticateToken, async (req: AuthRequestBody<CreateCoachAssignmentRequest>, res: Response, next: NextFunction): Promise<void> => {
+router.post('/assignments', authenticateToken, async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
         const user = req.user!;
 
@@ -385,7 +385,7 @@ router.post('/assignments', authenticateToken, async (req: AuthRequestBody<Creat
 });
 
 // PUT /api/engineers/assignments/:id/end - End coach assignment
-router.put('/assignments/:id/end', authenticateToken, async (req: AuthRequestParams<{ id: string }> & AuthRequestBody<{ end_date: string }>, res: Response, next: NextFunction): Promise<void> => {
+router.put('/assignments/:id/end', authenticateToken, async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
         const user = req.user!;
 

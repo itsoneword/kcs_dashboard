@@ -1,10 +1,6 @@
-import Database from 'better-sqlite3';
-import path from 'path';
+import { db } from '../database/database';
 import { CoachAssignment, CreateCoachAssignmentRequest } from '../types';
 import logger from '../utils/logger';
-
-const dbPath = path.join(__dirname, '../..', process.env.DATABASE_PATH || '../database/kcs_portal.db');
-const db = new Database(dbPath);
 
 class CoachAssignmentService {
     // Get all assignments with optional filtering

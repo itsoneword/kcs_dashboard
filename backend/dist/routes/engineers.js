@@ -304,6 +304,31 @@ router.put('/:id', auth_1.authenticateToken, async (req, res, next) => {
     }
 });
 // Coach Assignment Routes
+// GET /api/engineers/assignments - Get all coach assignments (filtered by role)
+router.get('/assignments', auth_1.authenticateToken, (req, res, next) => {
+    try {
+        const user = req.user;
+        let assignments;
+        if (user.is_admin || user.is_manager) {
+            assignments = coachAssignmentService_1.default.getAllAssignments();
+        }
+        else if (user.is_lead) {
+            assignments = coachAssignmentService_1.default.getAssignmentsByLead(user.id);
+        }
+        else if (user.is_coach) {
+            assignments = coachAssignmentService_1.default.getActiveAssignmentsByCoach(user.id);
+        }
+        else {
+            res.status(403).json({ error: 'Insufficient permissions' });
+            return;
+        }
+        res.json({ assignments });
+    }
+    catch (error) {
+        logger_1.default.error('Get all assignments error:', error);
+        res.status(500).json({ error: error.message || 'Failed to get assignments' });
+    }
+});
 // GET /api/engineers/:id/assignments - Get assignments for engineer
 router.get('/:id/assignments', auth_1.authenticateToken, (req, res, next) => {
     try {

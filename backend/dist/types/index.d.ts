@@ -65,6 +65,15 @@ export interface CaseEvaluation {
 export interface AuthRequest extends Request {
     user?: User;
 }
+export interface AuthRequestParams<P> extends Request<P, any, any, any> {
+    user?: User;
+}
+export interface AuthRequestQuery<Q> extends Request<any, any, any, Q> {
+    user?: User;
+}
+export interface AuthRequestBody<B> extends Request<any, any, B, any> {
+    user?: User;
+}
 export interface LoginRequest {
     email: string;
     password: string;
