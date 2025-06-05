@@ -20,6 +20,7 @@ services:
       - NODE_ENV=production
       - PORT=${BACKEND_PORT}
       - HOST=${HOST}
+      - DATABASE_PATH=/usr/src/app/database/kcs_portal.db
     # Check for accounts_list.md; seed DB if present, otherwise skip
     command: >
       sh -c "if [ -f /usr/src/accounts_list.md ]; then echo 'Found accounts_list.md, seeding DB...' && npm run seed:prod; else echo 'No accounts_list.md found, skipping DB seed'; fi && node dist/server.js"

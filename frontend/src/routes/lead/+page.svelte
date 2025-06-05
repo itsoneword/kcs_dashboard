@@ -35,19 +35,19 @@
       activeDropdownId = null;
       return;
     }
-    
+
     // Close any open dropdown
     if (activeDropdownId) {
       const dropdown = document.getElementById(activeDropdownId);
       if (dropdown) dropdown.classList.add('hidden');
     }
-    
+
     // Open the new dropdown
     const dropdown = document.getElementById(dropdownId);
     if (dropdown) dropdown.classList.remove('hidden');
     activeDropdownId = dropdownId;
   }
-  
+
   function closeAllDropdowns() {
     if (activeDropdownId) {
       const dropdown = document.getElementById(activeDropdownId);
@@ -55,15 +55,20 @@
       activeDropdownId = null;
     }
   }
-  
-  // Delete confirmation
-  let deleteConfirmText = '';
-  
+
   // Assign lead form
   let newLeadAssignment = {
     engineer_id: 0,
     lead_user_id: 0
   };
+
+  // Search term for filtering leads in Assign Lead modal
+  let leadSearchTerm = '';
+
+  // Reactive filtered list of leads based on search term
+  $: filteredLeads = leads.filter(lead =>
+    lead.name.toLowerCase().includes(leadSearchTerm.toLowerCase())
+  );
 
   // Create engineer form
   let newEngineer: CreateEngineerRequest = {
@@ -77,6 +82,9 @@
     coach_user_id: 0,
     start_date: new Date().toISOString().split('T')[0]
   };
+
+  // Delete confirmation
+  let deleteConfirmText = '';
 
   onMount(() => {
     const unsubscribe = authStore.subscribe((auth) => {
@@ -789,12 +797,20 @@
         <div class="mt-3">
           <h3 class="text-lg font-medium text-gray-900 mb-4">Change Lead for {selectedEngineer.name}</h3>
           
+          <!-- Search filter for leads -->
+          <input
+            type="text"
+            bind:value={leadSearchTerm}
+            placeholder="Search leads..."
+            class="input mb-2"
+          />  
+
           <form on:submit|preventDefault={assignLead}>
             <div class="mb-4">
               <label for="assign-lead-select" class="block text-sm font-medium text-gray-700 mb-1">Lead</label>
               <select id="assign-lead-select" bind:value={newLeadAssignment.lead_user_id} required class="input">
                 <option value={0}>Select Lead</option>
-                {#each leads as lead}
+                {#each filteredLeads as lead}
                   <option value={lead.id}>{lead.name}</option>
                 {/each}
               </select>
