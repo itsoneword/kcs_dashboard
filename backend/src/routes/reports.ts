@@ -193,16 +193,13 @@ router.get('/engineers', authenticateToken, createHandler(async (req: AuthReques
     const user = req.user!;
     let engineers;
 
-    if (user.is_admin) {
+    if (user.is_admin || user.is_manager) {
         engineers = await engineerService.getAllEngineers();
     } else if (user.is_lead) {
         engineers = await engineerService.getEngineersByLead(user.id);
     } else if (user.is_coach) {
         engineers = await engineerService.getEngineersByCoach(user.id);
-    } else if (user.is_manager) {
-        // Allow managers to view engineers; returning all engineers similar to admin for now
-        engineers = await engineerService.getAllEngineers();
-    } else {
+    }  else {
         res.status(403).json({ error: 'Insufficient permissions' });
         return;
     }
