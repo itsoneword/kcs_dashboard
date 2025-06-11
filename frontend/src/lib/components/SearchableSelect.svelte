@@ -6,6 +6,7 @@
   export let placeholder = "Select an option...";
   export let searchPlaceholder = "Search...";
   export let disabled = false;
+  export let emptyText: string = "No options found";
 
   const dispatch = createEventDispatcher();
 
@@ -112,7 +113,7 @@
             {option.label}
           </button>
         {:else}
-          <div class="px-3 py-2 text-sm text-gray-500">No options found</div>
+          <div class="px-3 py-2 text-sm text-gray-500">{emptyText}</div>
         {/each}
       </div>
     </div>
@@ -122,10 +123,18 @@
 <!-- Click outside to close -->
 {#if isOpen}
   <div
+    role="button"
+    tabindex="0"
     class="fixed inset-0 z-0"
     on:click={() => {
       isOpen = false;
       searchTerm = "";
+    }}
+    on:keydown={(e) => {
+      if (e.key === "Enter" || e.key === " " || e.key === "Escape") {
+        isOpen = false;
+        searchTerm = "";
+      }
     }}
   ></div>
 {/if}

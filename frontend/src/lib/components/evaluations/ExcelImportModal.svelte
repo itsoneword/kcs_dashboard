@@ -20,7 +20,7 @@
   let selectedFiles: File[] = [];
   let importYear = new Date().getFullYear();
   let importAsRole: "coach" | "lead" | "admin" =
-   (user?.is_admin || user?.is_manager) ? "admin" : "coach"; // Extended roles
+    user?.is_admin || user?.is_manager ? "admin" : "coach"; // Extended roles
 
   // Preview step data
   let previews: ExcelImportPreview[] = [];
@@ -33,14 +33,30 @@
   // Results step data
   let importResult: ExcelImportResult | null = null;
   // split missing-coach assignment messages into warnings
-  $: warnings = importResult ? importResult.errors.filter(msg => msg.includes('No active coach assignment')) : [];
-  $: errors = importResult ? importResult.errors.filter(msg => !msg.includes('No active coach assignment')) : [];
+  $: warnings = importResult
+    ? importResult.errors.filter((msg) =>
+        msg.includes("No active coach assignment"),
+      )
+    : [];
+  $: errors = importResult
+    ? importResult.errors.filter(
+        (msg) => !msg.includes("No active coach assignment"),
+      )
+    : [];
 
   // --- Role helpers ---
-  function isAdmin() { return user?.is_admin; }
-  function isManager() { return user?.is_manager; }
-  function isLead() { return user?.is_lead; }
-  function isCoach() { return user?.is_coach; }
+  function isAdmin() {
+    return user?.is_admin;
+  }
+  function isManager() {
+    return user?.is_manager;
+  }
+  function isLead() {
+    return user?.is_lead;
+  }
+  function isCoach() {
+    return user?.is_coach;
+  }
 
   // Year options (current year and previous 2 years)
   const currentYear = new Date().getFullYear();
@@ -58,7 +74,7 @@
     importResult = null;
     isLoading = false;
     importYear = new Date().getFullYear();
-    importAsRole = (user?.is_admin || user?.is_manager) ? "admin" : "coach";
+    importAsRole = user?.is_admin || user?.is_manager ? "admin" : "coach";
   }
 
   function handleClose() {
@@ -72,39 +88,61 @@
     const target = event.target as HTMLInputElement;
     selectedFiles = target.files ? Array.from(target.files) : [];
     if (selectedFiles.length === 0) {
-      toastStore.add({ type: 'warning', message: 'Please select at least one file' });
+      toastStore.add({
+        type: "warning",
+        message: "Please select at least one file",
+      });
     }
   }
 
   async function handleUpload() {
     // Load leads if needed
-    if (importAsRole === "admin" || importAsRole === "lead") await loadAvailableLeads();
-    if (selectedFiles.length === 0) { toastStore.add({ type: "warning", message: "Please select files first" }); return; }
+    if (importAsRole === "admin" || importAsRole === "lead")
+      await loadAvailableLeads();
+    if (selectedFiles.length === 0) {
+      toastStore.add({ type: "warning", message: "Please select files first" });
+      return;
+    }
     try {
       isLoading = true;
       const responses = [];
       for (const f of selectedFiles) {
-        responses.push(await apiService.importExcelPreview(
-          f, importYear,
-          (user?.is_admin||user?.is_manager)?importAsRole:undefined
-        ));
+        responses.push(
+          await apiService.importExcelPreview(
+            f,
+            importYear,
+            (user?.is_admin || user?.is_manager) && importAsRole !== "lead"
+              ? importAsRole
+              : undefined,
+          ),
+        );
       }
-      previews = responses.map(r => r.preview);
+      previews = responses.map((r) => r.preview);
       preview = combinePreviews(previews);
       // coaches
       await loadAvailableCoaches();
       initializeCoachSelections();
       currentStep = "preview";
-      if (preview.errors.length>0) toastStore.add({ type: "warning", message: `Parsed ${preview.errors.length} warning(s). Please review.` });
-      else toastStore.add({ type: "success", message: "Files parsed successfully." });
-    } catch (error:any) {
+      if (preview.errors.length > 0)
+        toastStore.add({
+          type: "warning",
+          message: `Parsed ${preview.errors.length} warning(s). Please review.`,
+        });
+      else
+        toastStore.add({
+          type: "success",
+          message: "Files parsed successfully.",
+        });
+    } catch (error: any) {
       console.error("Upload error:", error);
       const errorMessage =
         error.response?.data?.error ||
         error.message ||
         "Failed to parse Excel file";
       toastStore.add({ type: "error", message: errorMessage });
-    } finally { isLoading=false; }
+    } finally {
+      isLoading = false;
+    }
   }
 
   async function loadAvailableCoaches() {
@@ -151,14 +189,14 @@
 
     // Handle conflicts based on role hierarchy: admin > manager > lead > coach
     preview.conflicts.forEach((conflict) => {
-      if (importAsRole === "admin" || importAsRole === "lead") {
-        // Admins/Leads can choose any action
+      if (importAsRole === "admin") {
+        // Admins can choose any action
         coachSelections[conflict.engineer_name] = 0; // Default to "select coach"
         leadSelections[conflict.engineer_name] = 0; // Default to "select lead"
       } else if (importAsRole === "lead") {
         // Leads can only upload for their engineers, assign themselves as lead for new
         coachSelections[conflict.engineer_name] = 0;
-        leadSelections[conflict.engineer_name] = user.id;
+        if (user) leadSelections[conflict.engineer_name] = user.id;
       } else if (importAsRole === "coach") {
         // Coaches skip conflicts by default
         if (conflict.action === "skip") {
@@ -174,40 +212,54 @@
     preview.missing_coaches.forEach((missing) => {
       if (missing.suggested_action === "manual_select") {
         coachSelections[missing.engineer_name] = 0; // Default to "select coach"
-        if (importAsRole === "admin" || importAsRole === "lead") {
+        if (importAsRole === "admin") {
           leadSelections[missing.engineer_name] = 0;
         } else if (importAsRole === "lead") {
-          leadSelections[missing.engineer_name] = user.id;
+          if (user) leadSelections[missing.engineer_name] = user.id;
         }
       }
     });
   }
 
   async function handleImport() {
-    if (!selectedFiles||!preview) return;
+    if (!selectedFiles || !preview) return;
     try {
       isLoading = true;
       const responses = [];
       for (const f of selectedFiles) {
-        responses.push(await apiService.importExcelData(
-          f, importYear, coachSelections,
-          (user?.is_admin||user?.is_manager)?importAsRole:undefined
-        ));
+        responses.push(
+          await apiService.importExcelData(
+            f,
+            importYear,
+            coachSelections,
+            (user?.is_admin || user?.is_manager) && importAsRole !== "lead"
+              ? importAsRole
+              : undefined,
+          ),
+        );
       }
       importResult = combineResults(responses);
       currentStep = "results";
       if (importResult.success) {
-        toastStore.add({ type: "success", message: "Import completed successfully!" });
+        toastStore.add({
+          type: "success",
+          message: "Import completed successfully!",
+        });
         // delay dispatch until modal close so results remain visible
       } else {
-        toastStore.add({ type: "warning", message: "Import completed with errors." });
+        toastStore.add({
+          type: "warning",
+          message: "Import completed with errors.",
+        });
       }
-    } catch(error:any) {
+    } catch (error: any) {
       console.error("Import error:", error);
       const errorMessage =
         error.response?.data?.error || error.message || "Import failed";
       toastStore.add({ type: "error", message: errorMessage });
-    } finally { isLoading=false; }
+    } finally {
+      isLoading = false;
+    }
   }
 
   function formatConflictAction(action: string): string {
@@ -243,30 +295,50 @@
 
   // Combine multiple previews into one
   function combinePreviews(prevs: ExcelImportPreview[]): ExcelImportPreview {
-    const engineers = prevs.flatMap(p => p.engineers);
-    const conflicts = prevs.flatMap(p => p.conflicts);
-    const missing_coaches = prevs.flatMap(p => p.missing_coaches);
-    const errors = prevs.flatMap(p => p.errors);
-    const total_cases = prevs.reduce((sum, p) => sum + p.metadata.total_cases, 0);
-    const quarters_found = prevs.flatMap(p => p.metadata.quarters_found);
-    const file_name = prevs.map(p => p.metadata.file_name).join(', ');
-    const warns = prevs.map(p => p.coach_ownership_warning).filter(Boolean) as NonNullable<ExcelImportPreview['coach_ownership_warning']>[];
-    const coach_ownership_warning = warns.find(w => w.should_block_import) || warns[0] || null;
-    return { engineers, conflicts, missing_coaches, errors,
+    const engineers = prevs.flatMap((p) => p.engineers);
+    const conflicts = prevs.flatMap((p) => p.conflicts);
+    const missing_coaches = prevs.flatMap((p) => p.missing_coaches);
+    const errors = prevs.flatMap((p) => p.errors);
+    const total_cases = prevs.reduce(
+      (sum, p) => sum + p.metadata.total_cases,
+      0,
+    );
+    const quarters_found = prevs.flatMap((p) => p.metadata.quarters_found);
+    const file_name = prevs.map((p) => p.metadata.file_name).join(", ");
+    const warns = prevs
+      .map((p) => p.coach_ownership_warning)
+      .filter(Boolean) as NonNullable<
+      ExcelImportPreview["coach_ownership_warning"]
+    >[];
+    const coach_ownership_warning =
+      warns.find((w) => w.should_block_import) || warns[0] || null;
+    return {
+      engineers,
+      conflicts,
+      missing_coaches,
+      errors,
       metadata: { coach_name: null, total_cases, quarters_found, file_name },
-      coach_ownership_warning
+      coach_ownership_warning,
     };
   }
 
   // Merge multiple import results
-  function combineResults(resp: { result: ExcelImportResult }[]): ExcelImportResult {
+  function combineResults(
+    resp: { result: ExcelImportResult }[],
+  ): ExcelImportResult {
     return {
-      success: resp.every(r => r.result.success),
-      imported_engineers: resp.reduce((sum, r) => sum + r.result.imported_engineers, 0),
-      imported_evaluations: resp.reduce((sum, r) => sum + r.result.imported_evaluations, 0),
+      success: resp.every((r) => r.result.success),
+      imported_engineers: resp.reduce(
+        (sum, r) => sum + r.result.imported_engineers,
+        0,
+      ),
+      imported_evaluations: resp.reduce(
+        (sum, r) => sum + r.result.imported_evaluations,
+        0,
+      ),
       imported_cases: resp.reduce((sum, r) => sum + r.result.imported_cases, 0),
-      skipped_engineers: resp.flatMap(r => r.result.skipped_engineers),
-      errors: resp.flatMap(r => r.result.errors)
+      skipped_engineers: resp.flatMap((r) => r.result.skipped_engineers),
+      errors: resp.flatMap((r) => r.result.errors),
     };
   }
 </script>
@@ -373,17 +445,20 @@
             </label>
             <input
               bind:this={fileInput}
-              type="file" multiple
+              type="file"
+              multiple
               accept=".xlsx,.xlsm,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel.sheet.macroEnabled.12"
               on:change={handleFileSelect}
               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               disabled={isLoading}
             />
             {#if selectedFiles.length > 0}
-              <p class="text-sm text-gray-600 mt-2">Selected {selectedFiles.length} file(s):</p>
+              <p class="text-sm text-gray-600 mt-2">
+                Selected {selectedFiles.length} file(s):
+              </p>
               <ul class="list-disc ml-5 text-sm text-gray-600">
                 {#each selectedFiles as f}
-                  <li>{f.name} ({(f.size/1024/1024).toFixed(2)} MB)</li>
+                  <li>{f.name} ({(f.size / 1024 / 1024).toFixed(2)} MB)</li>
                 {/each}
               </ul>
             {/if}
@@ -416,7 +491,6 @@
                   disabled={isLoading}
                 >
                   <option value="coach">Coach</option>
-                  <option value="lead">Lead</option>
                   <option value="admin">Admin</option>
                 </select>
                 <p class="text-xs text-gray-500 mt-1">
@@ -530,7 +604,8 @@
             {#if preview.missing_coaches.length > 0}
               <div class="bg-blue-50 border border-blue-200 rounded-md p-4">
                 <h4 class="font-medium text-blue-900 mb-2">
-                  Coach Assignment Information ({preview.missing_coaches.length})
+                  Coach Assignment Information ({preview.missing_coaches
+                    .length})
                 </h4>
                 <div class="space-y-2">
                   {#each preview.missing_coaches as missing}
@@ -549,11 +624,15 @@
                         </div>
                       </div>
                       <div class="ml-4">
-                        {#if missing.suggested_action === "manual_select" && (importAsRole === "admin" || importAsRole === "lead")}
+                        {#if missing.suggested_action === "manual_select" && importAsRole === "admin"}
                           <div class="flex flex-col gap-1">
-                            <label class="text-xs text-gray-700">Assign Coach:</label>
+                            <label class="text-xs text-gray-700"
+                              >Assign Coach:</label
+                            >
                             <select
-                              bind:value={coachSelections[missing.engineer_name]}
+                              bind:value={
+                                coachSelections[missing.engineer_name]
+                              }
                               class="px-3 py-1 border border-gray-300 rounded text-sm min-w-[150px]"
                             >
                               <option value={0}>Select coach...</option>
@@ -561,7 +640,9 @@
                                 <option value={coach.id}>{coach.name}</option>
                               {/each}
                             </select>
-                            <label class="text-xs text-gray-700 mt-2">Assign Lead:</label>
+                            <label class="text-xs text-gray-700 mt-2"
+                              >Assign Lead:</label
+                            >
                             <select
                               bind:value={leadSelections[missing.engineer_name]}
                               class="px-3 py-1 border border-gray-300 rounded text-sm min-w-[150px]"
@@ -574,9 +655,13 @@
                           </div>
                         {:else if missing.suggested_action === "manual_select" && importAsRole === "lead"}
                           <div class="flex flex-col gap-1">
-                            <label class="text-xs text-gray-700">Assign Coach:</label>
+                            <label class="text-xs text-gray-700"
+                              >Assign Coach:</label
+                            >
                             <select
-                              bind:value={coachSelections[missing.engineer_name]}
+                              bind:value={
+                                coachSelections[missing.engineer_name]
+                              }
                               class="px-3 py-1 border border-gray-300 rounded text-sm min-w-[150px]"
                             >
                               <option value={0}>Select coach...</option>
@@ -584,7 +669,12 @@
                                 <option value={coach.id}>{coach.name}</option>
                               {/each}
                             </select>
-                            <div class="text-xs text-gray-500 mt-1">You are the lead for this engineer.</div>
+                            <div
+                              class="text-xs text-gray-500 mt-2 bg-blue-100 p-2 rounded"
+                            >
+                              New engineers will be assigned to you as
+                              <span class="font-bold">{user?.name}</span>.
+                            </div>
                           </div>
                         {:else}
                           <span class="text-sm px-2 py-1 bg-blue-100 rounded">
@@ -625,23 +715,34 @@
                   Coach Assignment Conflicts ({preview.conflicts.length})
                 </h4>
                 <div class="text-sm text-yellow-900 mb-2">
-                  <span>There is a mismatch between the coach in the uploaded file and the current database for these engineers. Please resolve the conflict below.</span>
+                  <span
+                    >There is a mismatch between the coach in the uploaded file
+                    and the current database for these engineers. Please resolve
+                    the conflict below.</span
+                  >
                 </div>
                 <div class="space-y-3">
                   {#each preview.conflicts as conflict}
-                    <div class="flex items-center justify-between bg-white p-3 rounded border">
+                    <div
+                      class="flex items-center justify-between bg-white p-3 rounded border"
+                    >
                       <div class="flex-1">
                         <div class="font-medium">{conflict.engineer_name}</div>
                         <div class="text-sm text-gray-600">
-                          Current: {conflict.current_coach} → Excel: {conflict.excel_coach || "Not specified"}
+                          Current: {conflict.current_coach} → Excel: {conflict.excel_coach ||
+                            "Not specified"}
                         </div>
                       </div>
                       <div class="ml-4">
-                        {#if (importAsRole === "admin" || importAsRole === "lead") && conflict.action === "manual"}
+                        {#if importAsRole === "admin" && conflict.action === "manual"}
                           <div class="flex flex-col gap-1">
-                            <label class="text-xs text-gray-700">Assign Coach:</label>
+                            <label class="text-xs text-gray-700"
+                              >Assign Coach:</label
+                            >
                             <select
-                              bind:value={coachSelections[conflict.engineer_name]}
+                              bind:value={
+                                coachSelections[conflict.engineer_name]
+                              }
                               class="px-3 py-1 border border-gray-300 rounded text-sm min-w-[150px]"
                             >
                               <option value={0}>Select coach...</option>
@@ -649,9 +750,13 @@
                                 <option value={coach.id}>{coach.name}</option>
                               {/each}
                             </select>
-                            <label class="text-xs text-gray-700 mt-2">Assign Lead:</label>
+                            <label class="text-xs text-gray-700 mt-2"
+                              >Assign Lead:</label
+                            >
                             <select
-                              bind:value={leadSelections[conflict.engineer_name]}
+                              bind:value={
+                                leadSelections[conflict.engineer_name]
+                              }
                               class="px-3 py-1 border border-gray-300 rounded text-sm min-w-[150px]"
                             >
                               <option value={0}>Select lead...</option>
@@ -662,9 +767,13 @@
                           </div>
                         {:else if importAsRole === "lead"}
                           <div>
-                            <label class="text-xs text-gray-700">Assign Coach:</label>
+                            <label class="text-xs text-gray-700"
+                              >Assign Coach:</label
+                            >
                             <select
-                              bind:value={coachSelections[conflict.engineer_name]}
+                              bind:value={
+                                coachSelections[conflict.engineer_name]
+                              }
                               class="px-3 py-1 border border-gray-300 rounded text-sm min-w-[150px]"
                             >
                               <option value={0}>Select coach...</option>
@@ -672,10 +781,19 @@
                                 <option value={coach.id}>{coach.name}</option>
                               {/each}
                             </select>
-                            <div class="text-xs text-gray-500 mt-1">You are the lead for this engineer. You may change the coach.</div>
+                            <div
+                              class="text-xs text-gray-500 mt-2 bg-yellow-100 p-2 rounded"
+                            >
+                              You will be assigned as lead. You may override the
+                              coach.
+                            </div>
                           </div>
                         {:else if importAsRole === "coach"}
-                          <span class="text-xs text-yellow-700 bg-yellow-100 px-2 py-1 rounded">Coach does not match your account. You cannot import this evaluation.</span>
+                          <span
+                            class="text-xs text-yellow-700 bg-yellow-100 px-2 py-1 rounded"
+                            >Coach does not match your account. You cannot
+                            import this evaluation.</span
+                          >
                         {:else}
                           <span class="text-sm px-2 py-1 bg-gray-100 rounded">
                             {formatConflictAction(conflict.action)}
@@ -834,11 +952,14 @@
           <div class="bg-blue-50 border border-blue-200 rounded-md p-4 mt-4">
             <h4 class="font-medium text-blue-900 mb-2">Import Summary</h4>
             <p class="text-sm text-blue-800">
-              Imported {importResult.imported_engineers} engineers and {importResult.imported_evaluations} evaluations with {importResult.imported_cases} cases successfully.
+              Imported {importResult.imported_engineers} engineers and {importResult.imported_evaluations}
+              evaluations with {importResult.imported_cases} cases successfully.
             </p>
             <div class="mt-2 space-x-4">
               <a href="/lead" class="text-blue-600 underline">View Engineers</a>
-              <a href="/evaluations" class="text-blue-600 underline">View Evaluations</a>
+              <a href="/evaluations" class="text-blue-600 underline"
+                >View Evaluations</a
+              >
             </div>
           </div>
 
@@ -858,9 +979,13 @@
 
           <!-- Warnings -->
           {#if warnings.length > 0}
-            <div class="bg-yellow-50 border border-yellow-200 rounded-md p-4 mt-4">
+            <div
+              class="bg-yellow-50 border border-yellow-200 rounded-md p-4 mt-4"
+            >
               <h4 class="font-medium text-yellow-900 mb-2">Warnings</h4>
-              <ul class="text-sm text-yellow-800 list-disc list-inside space-y-1">
+              <ul
+                class="text-sm text-yellow-800 list-disc list-inside space-y-1"
+              >
                 {#each warnings as warning}
                   <li>{warning}</li>
                 {/each}
@@ -871,7 +996,9 @@
           <!-- Errors -->
           {#if errors.length > 0}
             <div class="bg-red-50 border border-red-200 rounded-md p-4 mt-4">
-              <h4 class="font-medium text-red-900 mb-2">Errors ({errors.length})</h4>
+              <h4 class="font-medium text-red-900 mb-2">
+                Errors ({errors.length})
+              </h4>
               <ul class="text-sm text-red-800 list-disc list-inside space-y-1">
                 {#each errors as error}
                   <li>{error}</li>

@@ -1,8 +1,7 @@
-// @ts-nocheck
+import databaseManager from './database';
 import fs from 'fs';
 import path from 'path';
 import bcrypt from 'bcryptjs';
-import { db } from './database';
 
 function generatePassword(length = 8): string {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
@@ -35,13 +34,17 @@ function parseAccounts(filePath: string): Record<string, string[]> {
 
 function seedUsers(): void {
   const filePath = path.resolve(__dirname, '../../../accounts_list.md');
+  if (!fs.existsSync(filePath)) {
+    console.log('Skipping user seeding, accounts_list.md not found.');
+    return;
+  }
   const sections = parseAccounts(filePath);
-  const insert = db.prepare(
+  const insert = databaseManager.getDatabase().prepare(
     `INSERT OR IGNORE INTO users 
       (email, password_hash, name, is_coach, is_lead, is_admin, is_manager) 
      VALUES (?, ?, ?, ?, ?, ?, ?)`
   );
-  const check = db.prepare(`SELECT id FROM users WHERE email = ?`);
+  const check = databaseManager.getDatabase().prepare(`SELECT id FROM users WHERE email = ?`);
   const accounts: { email: string; password: string; role: string }[] = [];
 
   for (const role of ['coaches', 'leads', 'managers', 'admins']) {

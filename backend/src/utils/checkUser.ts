@@ -1,4 +1,4 @@
-import { db } from '../database/database';
+import databaseManager from '../database/database';
 
 interface UserInfo {
     id: number;
@@ -18,7 +18,7 @@ export function checkUser(email: string): UserInfo | null {
         // Normalize email to lowercase for case-insensitive lookup
         const normalizedEmail = email.toLowerCase().trim();
 
-        const user = db.prepare(`
+        const user = databaseManager.getDatabase().prepare(`
             SELECT 
                 id, 
                 email, 
@@ -43,7 +43,7 @@ export function checkUser(email: string): UserInfo | null {
 
 export function listAllUsers(): UserInfo[] {
     try {
-        const users = db.prepare(`
+        const users = databaseManager.getDatabase().prepare(`
             SELECT 
                 id, 
                 email, 

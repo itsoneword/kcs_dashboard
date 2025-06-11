@@ -12,7 +12,7 @@ async function resetUserPassword(options) {
         // Normalize email to lowercase for case-insensitive lookup
         const normalizedEmail = email.toLowerCase().trim();
         // Check if user exists
-        const user = database_1.db.prepare('SELECT id, email FROM users WHERE LOWER(email) = ? AND deleted_at IS NULL').get(normalizedEmail);
+        const user = database_1.databaseManager.getDatabase().prepare('SELECT id, email FROM users WHERE LOWER(email) = ? AND deleted_at IS NULL').get(normalizedEmail);
         if (!user) {
             console.error(`User with email ${email} not found`);
             return false;
@@ -20,7 +20,7 @@ async function resetUserPassword(options) {
         // Hash the new password
         const passwordHash = bcryptjs_1.default.hashSync(newPassword, 12);
         // Update the password using the actual email from database
-        const updateStmt = database_1.db.prepare('UPDATE users SET password_hash = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?');
+        const updateStmt = database_1.databaseManager.getDatabase().prepare('UPDATE users SET password_hash = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?');
         const result = updateStmt.run(passwordHash, user.id);
         if (result.changes > 0) {
             console.log(`Password successfully updated for user: ${email}`);
@@ -51,11 +51,11 @@ if (require.main === module) {
     }
     resetUserPassword({ email, newPassword })
         .then((success) => {
-        process.exit(success ? 0 : 1);
-    })
+            process.exit(success ? 0 : 1);
+        })
         .catch((error) => {
-        console.error('Script failed:', error);
-        process.exit(1);
-    });
+            console.error('Script failed:', error);
+            process.exit(1);
+        });
 }
 //# sourceMappingURL=resetPassword.js.map

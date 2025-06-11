@@ -473,17 +473,57 @@ class ApiService {
     }
 
     async getDatabaseMigrations(): Promise<{ migrations: Array<{ filename: string; path: string; size: number; modified: string; content: string; type: string }> }> {
-        const response = await this.api.get('/admin/database/migrations');
+        const response = await this.api.get('/admin/db/migrations');
         return response.data;
     }
 
     async executeSql(sql: string, confirmDangerous?: boolean): Promise<{ message: string; result: any; timestamp: string }> {
-        const response = await this.api.post('/admin/database/execute-sql', { sql, confirmDangerous });
+        const response = await this.api.post('/admin/db/execute-sql', { sql, confirm_dangerous: confirmDangerous });
         return response.data;
     }
 
     async changeDatabasePath(newDbPath: string): Promise<{ message: string; newPath: string; status: string; size: number; lastModified: string; timestamp: string }> {
-        const response: AxiosResponse<{ message: string; newPath: string; status: string; size: number; lastModified: string; timestamp: string }> = await this.api.post('/debug/database/change-path', { db_path: newDbPath });
+        const response = await this.api.post('/admin/db/change-path', { new_db_path: newDbPath });
+        return response.data;
+    }
+
+    async downloadBackup(filename: string): Promise<Response> {
+        const token = this.getStoredToken();
+        if (!token) {
+            throw new Error("Authentication token not found.");
+        }
+
+        const url = `${this.baseURL}/admin/db/backups/download/${filename}`;
+
+        const response = await fetch(url, {
+            headers: {
+                'Authorization': `Bearer ${token}`,
+            }
+        });
+
+        if (!response.ok) {
+            let errorMessage = `Download failed: ${response.statusText}`;
+            try {
+                const errorData = await response.json();
+                errorMessage = errorData.error || errorMessage;
+            } catch (e) {
+                // Response body is not JSON or is empty
+            }
+            throw new Error(errorMessage);
+        }
+
+        return response;
+    }
+
+    async uploadDatabase(file: File): Promise<{ message: string }> {
+        const formData = new FormData();
+        formData.append('db_file', file);
+
+        const response = await this.api.post('/admin/db/upload', formData, {
+            headers: {
+                'Content-Type': 'multipart/form-data',
+            },
+        });
         return response.data;
     }
 

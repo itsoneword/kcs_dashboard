@@ -5,6 +5,7 @@
   import { browser } from '$app/environment';
   import { loginTexts, registerTexts, roleOptions, errorMessages, debugTexts } from '$lib/content/help-texts';
   import type { UserRole } from '$lib/types';
+  export const ssr = false;
 
   let email = '';
   let password = '';

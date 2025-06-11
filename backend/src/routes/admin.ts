@@ -7,8 +7,20 @@ import { AuthRequest } from '../types';
 import databaseManager from '../database/database';
 import logger from '../utils/logger';
 import managerService from '../services/managerService';
+import multer from 'multer';
 
 const router = express.Router();
+
+// Multer config for handling database uploads
+const upload = multer({
+    dest: 'uploads/',
+    fileFilter: (req, file, cb) => {
+        if (path.extname(file.originalname) !== '.db') {
+            return cb(new Error('Only .db files are allowed'));
+        }
+        cb(null, true);
+    }
+});
 
 // GET /api/admin/database/status - Get database status
 router.get('/database/status', authenticateToken, requireAdmin, (req: AuthRequest, res: Response, next: NextFunction) => {
@@ -79,7 +91,9 @@ router.get('/database/backups', authenticateToken, requireAdmin, async (req: Aut
         const backupDir = path.join(__dirname, '../../backups');
 
         if (!fs.existsSync(backupDir)) {
+            logger.warn(`Backup directory not found at ${backupDir}. Returning empty list.`);
             res.json({ backups: [] });
+            return;
         }
 
         const files = fs.readdirSync(backupDir)
@@ -109,7 +123,7 @@ router.get('/database/schema', authenticateToken, requireAdmin, async (req: Auth
         const db = databaseManager.getDatabase();
 
         // Get table information
-        const tables = db.prepare(`
+        const tables = databaseManager.getDatabase().prepare(`
             SELECT name, sql 
             FROM sqlite_master 
             WHERE type='table' AND name NOT LIKE 'sqlite_%'
@@ -117,7 +131,7 @@ router.get('/database/schema', authenticateToken, requireAdmin, async (req: Auth
         `).all();
 
         // Get index information
-        const indexes = db.prepare(`
+        const indexes = databaseManager.getDatabase().prepare(`
             SELECT name, sql, tbl_name
             FROM sqlite_master 
             WHERE type='index' AND name NOT LIKE 'sqlite_%'
@@ -125,7 +139,7 @@ router.get('/database/schema', authenticateToken, requireAdmin, async (req: Auth
         `).all();
 
         // Get trigger information
-        const triggers = db.prepare(`
+        const triggers = databaseManager.getDatabase().prepare(`
             SELECT name, sql, tbl_name
             FROM sqlite_master 
             WHERE type='trigger'
@@ -223,10 +237,10 @@ router.post('/database/execute-sql', authenticateToken, requireAdmin, async (req
         let result;
         if (upperSQL.startsWith('SELECT')) {
             // For SELECT queries, return the results
-            result = db.prepare(sql).all();
+            result = databaseManager.getDatabase().prepare(sql).all();
         } else {
             // For other queries, return execution info
-            const info = db.prepare(sql).run();
+            const info = databaseManager.getDatabase().prepare(sql).run();
             result = {
                 changes: info.changes,
                 lastInsertRowid: info.lastInsertRowid
@@ -365,7 +379,7 @@ router.post('/managers/assign', authenticateToken, requireAnyRole(['admin', 'man
             return;
         }
 
-        const assignment = await managerService.assignManager(value.manager_id, value.assigned_to);
+        const assignment = await managerService.assignManagerToUser(value.manager_id, value.assigned_to);
         res.status(201).json({
             message: 'Manager assigned successfully',
             assignment
@@ -391,10 +405,95 @@ router.post('/managers/remove', authenticateToken, requireAnyRole(['admin', 'man
             return;
         }
 
-        await managerService.removeManager(value.manager_id, value.assigned_to);
+        await managerService.removeManagerFromUser(value.manager_id, value.assigned_to);
         res.json({ message: 'Manager assignment removed successfully' });
     } catch (error: any) {
         logger.error('Error removing manager assignment:', error);
+        next(error);
+    }
+});
+
+// GET /api/admin/db/backups/download/:filename - Download a database backup
+router.get('/db/backups/download/:filename', authenticateToken, requireAdmin, (req: AuthRequest, res, next) => {
+    try {
+        const filename = req.params.filename;
+        logger.info(`Admin user ${req.user?.id} requesting download of backup: ${filename}`);
+
+        if (filename.includes('..') || path.isAbsolute(filename)) {
+            logger.warn(`Potential path traversal attempt by user ${req.user?.id} for filename: ${filename}`);
+            res.status(400).json({ error: 'Invalid filename' });
+            return;
+        }
+
+        // Corrected path: from 'dist/routes' up to 'backend' directory
+        const backupDir = path.join(__dirname, '../../backups');
+        const filePath = path.join(backupDir, filename);
+        logger.info(`Attempting to serve file from path: ${filePath}`);
+
+        if (fs.existsSync(filePath)) {
+            res.download(filePath, filename, (err) => {
+                if (err) {
+                    logger.error(`Failed to send backup file ${filename} to user ${req.user?.id}:`, err);
+                    if (!res.headersSent) {
+                        res.status(500).json({ error: 'Could not download file.' });
+                    }
+                } else {
+                    logger.info(`Successfully sent backup ${filename} to admin ${req.user?.id}.`);
+                }
+            });
+        } else {
+            logger.error(`Backup file not found at path: ${filePath}. Request by user ${req.user?.id}.`);
+            res.status(404).json({ error: 'File not found' });
+        }
+    } catch (error) {
+        logger.error(`Error in download database backup route for user ${req.user?.id}:`, error);
+        next(error);
+    }
+});
+
+// POST /api/admin/db/upload - Upload and replace the database
+router.post('/db/upload', authenticateToken, requireAdmin, upload.single('db_file'), async (req: AuthRequest, res: Response, next: NextFunction) => {
+    logger.info(`Admin ${req.user?.id} started database upload process.`);
+    if (!req.file) {
+        logger.error(`Admin ${req.user?.id} attempted upload but no file was present.`);
+        res.status(400).json({ error: 'No database file uploaded.' });
+        return;
+    }
+
+    const uploadedFilePath = req.file.path;
+    const adminUserId = req.user?.id;
+
+    logger.warn(`Database upload initiated by admin ${adminUserId}. File: ${req.file.originalname}, Temp Path: ${uploadedFilePath}`);
+
+    try {
+        // 1. Create a backup of the current database before replacing it
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        // Corrected path: from 'dist/routes' up to 'backend' directory
+        const backupDir = path.join(__dirname, '../../backups');
+        const backupPath = path.join(backupDir, `pre-upload-backup_${timestamp}.db`);
+        if (!fs.existsSync(backupDir)) {
+            fs.mkdirSync(backupDir, { recursive: true });
+            logger.info(`Created backups directory: ${backupDir}`);
+        }
+        logger.info(`Backing up current database to ${backupPath}...`);
+        await databaseManager.backup(backupPath);
+        logger.info(`Automatic backup created successfully at ${backupPath} before upload.`);
+
+        // 2. Replace the database with the uploaded file
+        logger.info(`Replacing database with uploaded file: ${uploadedFilePath}`);
+        await databaseManager.replaceDatabase(uploadedFilePath);
+        logger.info(`Database replacement completed.`);
+
+        logger.warn(`Database successfully replaced by admin ${adminUserId} with file ${req.file.originalname}`);
+        res.json({ message: `Database successfully replaced with ${req.file.originalname}.` });
+
+    } catch (error) {
+        logger.error(`Error during database upload process by admin ${adminUserId}:`, error);
+        // Clean up the uploaded file if it still exists
+        if (fs.existsSync(uploadedFilePath)) {
+            logger.info(`Cleaning up temporary upload file: ${uploadedFilePath}`);
+            fs.unlinkSync(uploadedFilePath);
+        }
         next(error);
     }
 });

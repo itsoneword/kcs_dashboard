@@ -1,8 +1,8 @@
-import { db } from '../database/database';
-import { CoachAssignment, CreateCoachAssignmentRequest } from '../types';
+import databaseManager from '../database/database';
+import type { CoachAssignment, CreateCoachAssignmentRequest } from '../types';
 import logger from '../utils/logger';
 
-class CoachAssignmentService {
+export class CoachAssignmentService {
     // Get all assignments with optional filtering
     getAllAssignments(engineerId?: number, coachUserId?: number, isActive?: boolean): CoachAssignment[] {
         try {
@@ -35,7 +35,7 @@ class CoachAssignmentService {
 
             query += ' ORDER BY eca.start_date DESC';
 
-            const stmt = db.prepare(query);
+            const stmt = databaseManager.getDatabase().prepare(query);
             return stmt.all(...params) as CoachAssignment[];
         } catch (error) {
             logger.error('Error getting coach assignments:', error);
@@ -46,7 +46,7 @@ class CoachAssignmentService {
     // Get assignment by ID
     getAssignmentById(id: number): CoachAssignment | null {
         try {
-            const stmt = db.prepare(`
+            const stmt = databaseManager.getDatabase().prepare(`
                 SELECT 
                     eca.*,
                     e.name as engineer_name,
@@ -67,7 +67,7 @@ class CoachAssignmentService {
     createAssignment(assignmentData: CreateCoachAssignmentRequest): CoachAssignment {
         try {
             // Check if there's already an active assignment for this engineer-coach pair
-            const activeStmt = db.prepare(`
+            const activeStmt = databaseManager.getDatabase().prepare(`
                 SELECT id FROM engineer_coach_assignments 
                 WHERE engineer_id = ? AND coach_user_id = ? AND is_active = 1
             `);
@@ -78,7 +78,7 @@ class CoachAssignmentService {
             }
 
             // Check if there's an existing inactive assignment with the same date that we can reactivate
-            const inactiveStmt = db.prepare(`
+            const inactiveStmt = databaseManager.getDatabase().prepare(`
                 SELECT id FROM engineer_coach_assignments 
                 WHERE engineer_id = ? AND coach_user_id = ? AND start_date = ? AND is_active = 0
             `);
@@ -92,7 +92,7 @@ class CoachAssignmentService {
 
             if (inactiveAssignment) {
                 // Reactivate existing assignment
-                const reactivateStmt = db.prepare(`
+                const reactivateStmt = databaseManager.getDatabase().prepare(`
                     UPDATE engineer_coach_assignments 
                     SET is_active = 1, end_date = NULL
                     WHERE id = ?
@@ -103,7 +103,7 @@ class CoachAssignmentService {
                 logger.info(`Coach assignment reactivated: Engineer-Coach assignment ID ${assignmentId}`);
             } else {
                 // Create new assignment
-                const insertStmt = db.prepare(`
+                const insertStmt = databaseManager.getDatabase().prepare(`
                     INSERT INTO engineer_coach_assignments (engineer_id, coach_user_id, start_date)
                     VALUES (?, ?, ?)
                 `);
@@ -139,7 +139,7 @@ class CoachAssignmentService {
                 throw new Error('Assignment not found');
             }
 
-            const stmt = db.prepare(`
+            const stmt = databaseManager.getDatabase().prepare(`
                 UPDATE engineer_coach_assignments 
                 SET end_date = ?, is_active = 0
                 WHERE id = ?
@@ -163,7 +163,7 @@ class CoachAssignmentService {
     // Get active assignments for a coach
     getActiveAssignmentsByCoach(coachUserId: number): CoachAssignment[] {
         try {
-            const stmt = db.prepare(`
+            const stmt = databaseManager.getDatabase().prepare(`
                 SELECT 
                     eca.*,
                     e.name as engineer_name,
@@ -184,7 +184,7 @@ class CoachAssignmentService {
     // Get assignments for engineers under a specific lead
     getAssignmentsByLead(leadUserId: number): CoachAssignment[] {
         try {
-            const stmt = db.prepare(`
+            const stmt = databaseManager.getDatabase().prepare(`
                 SELECT 
                     eca.*,
                     e.name as engineer_name,
@@ -205,7 +205,7 @@ class CoachAssignmentService {
     // Check if engineer has active coach assignment
     hasActiveCoach(engineerId: number): boolean {
         try {
-            const stmt = db.prepare(`
+            const stmt = databaseManager.getDatabase().prepare(`
                 SELECT COUNT(*) as count 
                 FROM engineer_coach_assignments 
                 WHERE engineer_id = ? AND is_active = 1
@@ -216,6 +216,27 @@ class CoachAssignmentService {
             logger.error('Error checking active coach:', error);
             return false;
         }
+    }
+
+    public create(data: CreateCoachAssignmentRequest): { id: number } {
+        const { engineer_id, coach_user_id, start_date } = data;
+        const stmt = databaseManager.getDatabase().prepare(`
+            INSERT INTO coach_assignments (engineer_id, coach_user_id, start_date)
+            VALUES (?, ?, ?)
+        `);
+        const result = stmt.run(engineer_id, coach_user_id, start_date);
+        return { id: result.lastInsertRowid as number };
+    }
+
+    public getByEngineerId(engineerId: number): CoachAssignment[] {
+        const stmt = databaseManager.getDatabase().prepare('SELECT * FROM coach_assignments WHERE engineer_id = ? ORDER BY start_date DESC');
+        return stmt.all(engineerId) as CoachAssignment[];
+    }
+
+    public end(assignmentId: number, endDate: string): boolean {
+        const stmt = databaseManager.getDatabase().prepare('UPDATE coach_assignments SET end_date = ? WHERE id = ?');
+        const result = stmt.run(endDate, assignmentId);
+        return result.changes > 0;
     }
 }
 

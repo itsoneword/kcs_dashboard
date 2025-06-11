@@ -7,7 +7,7 @@ function checkUser(email) {
     try {
         // Normalize email to lowercase for case-insensitive lookup
         const normalizedEmail = email.toLowerCase().trim();
-        const user = database_1.db.prepare(`
+        const user = database_1.databaseManager.getDatabase().prepare(`
             SELECT 
                 id, 
                 email, 
@@ -31,7 +31,7 @@ function checkUser(email) {
 }
 function listAllUsers() {
     try {
-        const users = database_1.db.prepare(`
+        const users = database_1.databaseManager.getDatabase().prepare(`
             SELECT 
                 id, 
                 email, 

@@ -81,10 +81,10 @@ class EvaluationService {
             // logger.debug('getAllEvaluations SQL:', query, 'params:', params);
             // console.log('getAllEvaluations filters:', filters);
             // console.log('getAllEvaluations SQL:', query, 'params:', params);
-            const stmt = database_1.db.prepare(query);
+            const stmt = database_1.databaseManager.getDatabase().prepare(query);
             const evaluations = stmt.all(...params);
             // Add case count for each evaluation
-            const caseCountStmt = database_1.db.prepare(`
+            const caseCountStmt = database_1.databaseManager.getDatabase().prepare(`
                 SELECT COUNT(*) as case_count 
                 FROM case_evaluations 
                 WHERE evaluation_id = ? AND case_id IS NOT NULL AND case_id != '' AND deleted_at IS NULL
@@ -103,7 +103,7 @@ class EvaluationService {
     // Get evaluation by ID with cases
     getEvaluationById(id) {
         try {
-            const stmt = database_1.db.prepare(`
+            const stmt = database_1.databaseManager.getDatabase().prepare(`
                 SELECT 
                     ev.*,
                     e.name as engineer_name,
@@ -128,7 +128,7 @@ class EvaluationService {
     createEvaluation(evaluationData, createdBy) {
         try {
             // Check if evaluation already exists for this engineer and month (excluding soft-deleted)
-            const existingStmt = database_1.db.prepare(`
+            const existingStmt = database_1.databaseManager.getDatabase().prepare(`
                 SELECT id FROM evaluations 
                 WHERE engineer_id = ? AND strftime('%Y-%m', evaluation_date) = strftime('%Y-%m', ?) AND deleted_at IS NULL
             `);
@@ -137,7 +137,7 @@ class EvaluationService {
                 throw new Error('Evaluation already exists for this engineer and month');
             }
             // Get coach assignment for this engineer
-            const coachStmt = database_1.db.prepare(`
+            const coachStmt = database_1.databaseManager.getDatabase().prepare(`
                 SELECT coach_user_id FROM engineer_coach_assignments 
                 WHERE engineer_id = ? AND is_active = 1
                 LIMIT 1
@@ -146,7 +146,7 @@ class EvaluationService {
             if (!assignment) {
                 throw new Error('No active coach assignment found for this engineer');
             }
-            const stmt = database_1.db.prepare(`
+            const stmt = database_1.databaseManager.getDatabase().prepare(`
                 INSERT INTO evaluations (engineer_id, coach_user_id, evaluation_date, created_by, updated_by)
                 VALUES (?, ?, ?, ?, ?)
             `);
@@ -184,7 +184,7 @@ class EvaluationService {
             updates.push('updated_by = ?');
             params.push(updatedBy);
             params.push(id);
-            const stmt = database_1.db.prepare(`
+            const stmt = database_1.databaseManager.getDatabase().prepare(`
                 UPDATE evaluations 
                 SET ${updates.join(', ')}
                 WHERE id = ?
@@ -209,7 +209,7 @@ class EvaluationService {
             if (!existingEvaluation) {
                 throw new Error('Evaluation not found');
             }
-            const stmt = database_1.db.prepare(`
+            const stmt = database_1.databaseManager.getDatabase().prepare(`
                 UPDATE evaluations 
                 SET deleted_at = CURRENT_TIMESTAMP, updated_by = ?
                 WHERE id = ?
@@ -235,7 +235,7 @@ class EvaluationService {
     // Get evaluations by lead (for engineers under their management)
     getEvaluationsByLead(leadUserId) {
         try {
-            const stmt = database_1.db.prepare(`
+            const stmt = database_1.databaseManager.getDatabase().prepare(`
                 SELECT 
                     ev.*,
                     e.name as engineer_name,
@@ -250,7 +250,7 @@ class EvaluationService {
             `);
             const evaluations = stmt.all(leadUserId);
             // Add case count for each evaluation
-            const caseCountStmt = database_1.db.prepare(`
+            const caseCountStmt = database_1.databaseManager.getDatabase().prepare(`
                 SELECT COUNT(*) as case_count 
                 FROM case_evaluations 
                 WHERE evaluation_id = ? AND case_id IS NOT NULL AND case_id != '' AND deleted_at IS NULL
@@ -269,7 +269,7 @@ class EvaluationService {
     // Case Evaluation Methods
     getCasesByEvaluationId(evaluationId) {
         try {
-            const stmt = database_1.db.prepare(`
+            const stmt = database_1.databaseManager.getDatabase().prepare(`
                 SELECT * FROM case_evaluations 
                 WHERE evaluation_id = ? AND deleted_at IS NULL
                 ORDER BY case_number ASC
@@ -284,7 +284,7 @@ class EvaluationService {
     // Create default 7 cases for new evaluation
     createDefaultCases(evaluationId) {
         try {
-            const stmt = database_1.db.prepare(`
+            const stmt = database_1.databaseManager.getDatabase().prepare(`
                 INSERT INTO case_evaluations (evaluation_id, case_number)
                 VALUES (?, ?)
             `);
@@ -302,7 +302,7 @@ class EvaluationService {
         try {
             // Check if case_id already exists for this evaluation (excluding deleted cases)
             if (caseData.case_id) {
-                const existingCaseStmt = database_1.db.prepare(`
+                const existingCaseStmt = database_1.databaseManager.getDatabase().prepare(`
                     SELECT id FROM case_evaluations 
                     WHERE evaluation_id = ? AND case_id = ? AND deleted_at IS NULL
                 `);
@@ -312,14 +312,14 @@ class EvaluationService {
                 }
             }
             // Get the next case number by finding the highest case_number for this evaluation
-            const maxCaseNumberStmt = database_1.db.prepare(`
+            const maxCaseNumberStmt = database_1.databaseManager.getDatabase().prepare(`
                 SELECT COALESCE(MAX(case_number), 0) as max_case_number 
                 FROM case_evaluations 
                 WHERE evaluation_id = ?
             `);
             const result = maxCaseNumberStmt.get(evaluationId);
             const nextCaseNumber = result.max_case_number + 1;
-            const stmt = database_1.db.prepare(`
+            const stmt = database_1.databaseManager.getDatabase().prepare(`
                 INSERT INTO case_evaluations (
                     evaluation_id, case_number, case_id, kb_potential, article_linked,
                     article_improved, improvement_opportunity, article_created,
@@ -388,7 +388,7 @@ class EvaluationService {
                 return existingCase;
             }
             params.push(caseId);
-            const stmt = database_1.db.prepare(`
+            const stmt = database_1.databaseManager.getDatabase().prepare(`
                 UPDATE case_evaluations 
                 SET ${updates.join(', ')}
                 WHERE id = ?
@@ -415,7 +415,7 @@ class EvaluationService {
             if (existingCase.deleted_at) {
                 throw new Error('Case is already deleted');
             }
-            const stmt = database_1.db.prepare(`
+            const stmt = database_1.databaseManager.getDatabase().prepare(`
                 UPDATE case_evaluations 
                 SET deleted_at = CURRENT_TIMESTAMP
                 WHERE id = ?
@@ -431,7 +431,7 @@ class EvaluationService {
     // Get case by ID
     getCaseById(id) {
         try {
-            const stmt = database_1.db.prepare('SELECT * FROM case_evaluations WHERE id = ?');
+            const stmt = database_1.databaseManager.getDatabase().prepare('SELECT * FROM case_evaluations WHERE id = ?');
             return stmt.get(id);
         }
         catch (error) {
@@ -442,7 +442,7 @@ class EvaluationService {
     // Get empty cases from evaluation (cases without case_id that can be populated)
     getEmptyCases(evaluationId) {
         try {
-            const stmt = database_1.db.prepare(`
+            const stmt = database_1.databaseManager.getDatabase().prepare(`
                 SELECT * FROM case_evaluations 
                 WHERE evaluation_id = ? AND (case_id IS NULL OR case_id = '') AND deleted_at IS NULL
                 ORDER BY case_number ASC
@@ -460,7 +460,7 @@ class EvaluationService {
             if (!caseId || caseId.trim() === '') {
                 return { exists: false };
             }
-            const stmt = database_1.db.prepare(`
+            const stmt = database_1.databaseManager.getDatabase().prepare(`
                 SELECT 
                     ce.id,
                     ce.evaluation_id,
@@ -582,7 +582,7 @@ class EvaluationService {
                 query += ` AND strftime('%m', ev.evaluation_date) IN (${placeholdersM})`;
                 params.push(...filters.months.map(m => m.toString().padStart(2, '0')));
             }
-            const stmt = database_1.db.prepare(query);
+            const stmt = database_1.databaseManager.getDatabase().prepare(query);
             const result = stmt.get(...params);
             // Calculate percentages
             const totalCases = result.total_cases || 0;

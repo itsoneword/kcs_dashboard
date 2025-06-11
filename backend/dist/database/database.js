@@ -57,7 +57,7 @@ class DatabaseManager {
                 throw new Error(`schema.sql not found at: ${schemaSqlPath}. Ensure it's in the same directory as database.ts (and copied to dist/database on build).`);
             }
             const schema = fs_1.default.readFileSync(schemaSqlPath, 'utf8');
-            this.db.exec(schema);
+            this.databaseManager.getDatabase().exec(schema);
             logger_1.default.info('[runMigrations] Database schema migration completed.');
         }
         catch (error) {
@@ -85,7 +85,7 @@ class DatabaseManager {
             if (!this.isInitialized || !this.db) {
                 return false;
             }
-            const result = this.db.prepare('SELECT 1 as health').get();
+            const result = this.databaseManager.getDatabase().prepare('SELECT 1 as health').get();
             return result ? result.health === 1 : false;
         }
         catch (error) {
@@ -93,7 +93,7 @@ class DatabaseManager {
             // Try to reinitialize if health check fails
             try {
                 this.initializeDatabase();
-                const result = this.db.prepare('SELECT 1 as health').get();
+                const result = this.databaseManager.getDatabase().prepare('SELECT 1 as health').get();
                 return result ? result.health === 1 : false;
             }
             catch (retryError) {

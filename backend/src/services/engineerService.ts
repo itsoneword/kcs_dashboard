@@ -1,8 +1,8 @@
-import { db } from '../database/database';
-import { Engineer, CreateEngineerRequest, UpdateEngineerRequest } from '../types';
+import databaseManager from '../database/database';
+import type { Engineer, CreateEngineerRequest, UpdateEngineerRequest } from '../types';
 import logger from '../utils/logger';
 
-class EngineerService {
+export class EngineerService {
     // Get all engineers with optional filtering
     getAllEngineers(leadUserId?: number, isActive?: boolean): Engineer[] {
         try {
@@ -31,7 +31,7 @@ class EngineerService {
 
             query += ' ORDER BY e.name ASC';
 
-            const stmt = db.prepare(query);
+            const stmt = databaseManager.getDatabase().prepare(query);
             return stmt.all(...params) as Engineer[];
         } catch (error) {
             logger.error('Error getting engineers:', error);
@@ -42,7 +42,7 @@ class EngineerService {
     // Get engineer by ID
     getEngineerById(id: number): Engineer | null {
         try {
-            const stmt = db.prepare(`
+            const stmt = databaseManager.getDatabase().prepare(`
                 SELECT 
                     e.*,
                     u.name as lead_name,
@@ -63,7 +63,7 @@ class EngineerService {
     // Create new engineer
     createEngineer(data: CreateEngineerRequest): Engineer {
         try {
-            const stmt = db.prepare(`
+            const stmt = databaseManager.getDatabase().prepare(`
                 INSERT INTO engineers (name, lead_user_id)
                 VALUES (?, ?)
             `);
@@ -101,7 +101,7 @@ class EngineerService {
 
             params.push(id);
 
-            const stmt = db.prepare(`
+            const stmt = databaseManager.getDatabase().prepare(`
                 UPDATE engineers
                 SET ${updates.join(', ')}
                 WHERE id = ?
@@ -118,7 +118,7 @@ class EngineerService {
     // Get engineers assigned to a specific coach
     getEngineersByCoach(coachUserId: number): Engineer[] {
         try {
-            const stmt = db.prepare(`
+            const stmt = databaseManager.getDatabase().prepare(`
                 SELECT DISTINCT
                     e.*,
                     u.name as lead_name,
@@ -140,7 +140,7 @@ class EngineerService {
     // Get engineers by lead (for team management)
     getEngineersByLead(leadUserId: number): Engineer[] {
         try {
-            const stmt = db.prepare(`
+            const stmt = databaseManager.getDatabase().prepare(`
                 SELECT 
                     e.*,
                     u.name as lead_name,
@@ -182,7 +182,7 @@ class EngineerService {
 
             query += ' ORDER BY e.name ASC LIMIT 20';
 
-            const stmt = db.prepare(query);
+            const stmt = databaseManager.getDatabase().prepare(query);
             return stmt.all(...params) as Engineer[];
         } catch (error) {
             logger.error('Error searching engineers:', error);

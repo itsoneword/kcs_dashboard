@@ -1,22 +1,22 @@
 "use strict";
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function (o, m, k, k2) {
     if (k2 === undefined) k2 = k;
     var desc = Object.getOwnPropertyDescriptor(m, k);
     if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-      desc = { enumerable: true, get: function() { return m[k]; } };
+        desc = { enumerable: true, get: function () { return m[k]; } };
     }
     Object.defineProperty(o, k2, desc);
-}) : (function(o, m, k, k2) {
+}) : (function (o, m, k, k2) {
     if (k2 === undefined) k2 = k;
     o[k2] = m[k];
 }));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function (o, v) {
     Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function(o, v) {
+}) : function (o, v) {
     o["default"] = v;
 });
 var __importStar = (this && this.__importStar) || (function () {
-    var ownKeys = function(o) {
+    var ownKeys = function (o) {
         ownKeys = Object.getOwnPropertyNames || function (o) {
             var ar = [];
             for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
@@ -54,7 +54,7 @@ class AuthService {
             const normalizedEmail = email.toLowerCase().trim();
             // Use retry logic for database operations
             const user = database_1.default.executeWithRetry(() => {
-                const stmt = database_1.db.prepare('SELECT * FROM users WHERE LOWER(email) = ? AND deleted_at IS NULL');
+                const stmt = database_1.databaseManager.getDatabase().prepare('SELECT * FROM users WHERE LOWER(email) = ? AND deleted_at IS NULL');
                 return stmt.get(normalizedEmail);
             });
             if (!user) {
@@ -97,14 +97,14 @@ class AuthService {
             // Use retry logic for database operations
             const result = database_1.default.executeWithRetry(() => {
                 // Check if user already exists (case-insensitive)
-                const existingUser = database_1.db.prepare('SELECT id FROM users WHERE LOWER(email) = ? AND deleted_at IS NULL').get(normalizedEmail);
+                const existingUser = database_1.databaseManager.getDatabase().prepare('SELECT id FROM users WHERE LOWER(email) = ? AND deleted_at IS NULL').get(normalizedEmail);
                 if (existingUser) {
                     throw new Error('User already exists');
                 }
                 // Hash password
                 const passwordHash = bcryptjs_1.default.hashSync(password, 12);
                 // Check if this is the first user (make them admin)
-                const userCount = database_1.db.prepare('SELECT COUNT(*) as count FROM users WHERE deleted_at IS NULL').get();
+                const userCount = database_1.databaseManager.getDatabase().prepare('SELECT COUNT(*) as count FROM users WHERE deleted_at IS NULL').get();
                 const isFirstUser = userCount.count === 0;
                 // Set role flags based on the role parameter
                 let is_coach = 0;
@@ -126,13 +126,13 @@ class AuthService {
                     is_manager = 1;
                 }
                 // Insert new user
-                const insertStmt = database_1.db.prepare(`
+                const insertStmt = database_1.databaseManager.getDatabase().prepare(`
                     INSERT INTO users (email, password_hash, name, is_admin, is_coach, is_lead, is_manager)
                     VALUES (?, ?, ?, ?, ?, ?, ?)
                 `);
                 const insertResult = insertStmt.run(normalizedEmail, passwordHash, name, is_admin, is_coach, is_lead, is_manager);
                 // Get the created user
-                const newUser = database_1.db.prepare('SELECT * FROM users WHERE id = ?').get(insertResult.lastInsertRowid);
+                const newUser = database_1.databaseManager.getDatabase().prepare('SELECT * FROM users WHERE id = ?').get(insertResult.lastInsertRowid);
                 return newUser;
             });
             // Generate token
@@ -157,7 +157,7 @@ class AuthService {
             const decoded = jsonwebtoken_1.default.verify(token, this.jwtSecret);
             // Get fresh user data from database with retry logic
             const user = database_1.default.executeWithRetry(() => {
-                const stmt = database_1.db.prepare('SELECT * FROM users WHERE id = ? AND deleted_at IS NULL');
+                const stmt = database_1.databaseManager.getDatabase().prepare('SELECT * FROM users WHERE id = ? AND deleted_at IS NULL');
                 return stmt.get(decoded.userId);
             });
             if (!user) {
@@ -190,7 +190,7 @@ class AuthService {
     // Get user by ID
     getUserById(id) {
         try {
-            const user = database_1.db.prepare('SELECT * FROM users WHERE id = ?').get(id);
+            const user = database_1.databaseManager.getDatabase().prepare('SELECT * FROM users WHERE id = ?').get(id);
             if (!user)
                 return null;
             // Remove password hash
@@ -206,7 +206,7 @@ class AuthService {
     async updateUserRoles(adminId, targetUserId, roles) {
         try {
             // Get current user data for logging
-            const currentUser = database_1.db.prepare('SELECT is_coach, is_lead, is_admin, is_manager FROM users WHERE id = ?').get(targetUserId);
+            const currentUser = database_1.databaseManager.getDatabase().prepare('SELECT is_coach, is_lead, is_admin, is_manager FROM users WHERE id = ?').get(targetUserId);
             // Prevent admin from removing their own admin permissions
             if (adminId === targetUserId && roles.is_admin === false) {
                 throw new Error('Cannot remove your own admin permissions');
@@ -234,7 +234,7 @@ class AuthService {
                 throw new Error('No role updates provided');
             }
             values.push(targetUserId);
-            const updateStmt = database_1.db.prepare(`
+            const updateStmt = database_1.databaseManager.getDatabase().prepare(`
         UPDATE users 
         SET ${updates.join(', ')}
         WHERE id = ?
@@ -257,7 +257,7 @@ class AuthService {
     // Get all users (admin only) - excludes soft deleted users
     getAllUsers() {
         try {
-            const users = database_1.db.prepare('SELECT * FROM users WHERE deleted_at IS NULL ORDER BY created_at DESC').all();
+            const users = database_1.databaseManager.getDatabase().prepare('SELECT * FROM users WHERE deleted_at IS NULL ORDER BY created_at DESC').all();
             // Remove password hashes
             return users.map(user => {
                 const { password_hash, ...userWithoutPassword } = user;
@@ -277,7 +277,7 @@ class AuthService {
                 throw new Error('Cannot delete your own account');
             }
             // Check if user exists and is not already deleted
-            const user = database_1.db.prepare('SELECT id, name, email, deleted_at FROM users WHERE id = ?').get(targetUserId);
+            const user = database_1.databaseManager.getDatabase().prepare('SELECT id, name, email, deleted_at FROM users WHERE id = ?').get(targetUserId);
             if (!user) {
                 throw new Error('User not found');
             }
@@ -285,7 +285,7 @@ class AuthService {
                 throw new Error('User is already deleted');
             }
             // Soft delete the user
-            const deleteStmt = database_1.db.prepare('UPDATE users SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?');
+            const deleteStmt = database_1.databaseManager.getDatabase().prepare('UPDATE users SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?');
             deleteStmt.run(targetUserId);
             // Log user deletion
             logger_1.default.info(`User soft deleted by admin ${adminId}: ${user.email} (ID: ${targetUserId})`);

@@ -1,4 +1,4 @@
-import { db } from '../database/database';
+import databaseManager from '../database/database';
 import {
     Evaluation,
     CreateEvaluationRequest,
@@ -109,11 +109,11 @@ class EvaluationService {
             // console.log('getAllEvaluations filters:', filters);
             // console.log('getAllEvaluations SQL:', query, 'params:', params);
 
-            const stmt = db.prepare(query);
+            const stmt = databaseManager.getDatabase().prepare(query);
             const evaluations = stmt.all(...params) as Evaluation[];
 
             // Add case count for each evaluation
-            const caseCountStmt = db.prepare(`
+            const caseCountStmt = databaseManager.getDatabase().prepare(`
                 SELECT COUNT(*) as case_count 
                 FROM case_evaluations 
                 WHERE evaluation_id = ? AND case_id IS NOT NULL AND case_id != '' AND deleted_at IS NULL
@@ -134,7 +134,7 @@ class EvaluationService {
     // Get evaluation by ID with cases
     getEvaluationById(id: number): Evaluation | null {
         try {
-            const stmt = db.prepare(`
+            const stmt = databaseManager.getDatabase().prepare(`
                 SELECT 
                     ev.*,
                     e.name as engineer_name,
@@ -161,7 +161,7 @@ class EvaluationService {
     createEvaluation(evaluationData: CreateEvaluationRequest, createdBy: number): Evaluation {
         try {
             // Check if evaluation already exists for this engineer and month (excluding soft-deleted)
-            const existingStmt = db.prepare(`
+            const existingStmt = databaseManager.getDatabase().prepare(`
                 SELECT id FROM evaluations 
                 WHERE engineer_id = ? AND strftime('%Y-%m', evaluation_date) = strftime('%Y-%m', ?) AND deleted_at IS NULL
             `);
@@ -172,7 +172,7 @@ class EvaluationService {
             }
 
             // Get coach assignment for this engineer
-            const coachStmt = db.prepare(`
+            const coachStmt = databaseManager.getDatabase().prepare(`
                 SELECT coach_user_id FROM engineer_coach_assignments 
                 WHERE engineer_id = ? AND is_active = 1
                 LIMIT 1
@@ -183,7 +183,7 @@ class EvaluationService {
                 throw new Error('No active coach assignment found for this engineer');
             }
 
-            const stmt = db.prepare(`
+            const stmt = databaseManager.getDatabase().prepare(`
                 INSERT INTO evaluations (engineer_id, coach_user_id, evaluation_date, created_by, updated_by)
                 VALUES (?, ?, ?, ?, ?)
             `);
@@ -236,7 +236,7 @@ class EvaluationService {
             params.push(updatedBy);
             params.push(id);
 
-            const stmt = db.prepare(`
+            const stmt = databaseManager.getDatabase().prepare(`
                 UPDATE evaluations 
                 SET ${updates.join(', ')}
                 WHERE id = ?
@@ -265,7 +265,7 @@ class EvaluationService {
                 throw new Error('Evaluation not found');
             }
 
-            const stmt = db.prepare(`
+            const stmt = databaseManager.getDatabase().prepare(`
                 UPDATE evaluations 
                 SET deleted_at = CURRENT_TIMESTAMP, updated_by = ?
                 WHERE id = ?
@@ -293,7 +293,7 @@ class EvaluationService {
     // Get evaluations by lead (for engineers under their management)
     getEvaluationsByLead(leadUserId: number): Evaluation[] {
         try {
-            const stmt = db.prepare(`
+            const stmt = databaseManager.getDatabase().prepare(`
                 SELECT 
                     ev.*,
                     e.name as engineer_name,
@@ -309,7 +309,7 @@ class EvaluationService {
             const evaluations = stmt.all(leadUserId) as Evaluation[];
 
             // Add case count for each evaluation
-            const caseCountStmt = db.prepare(`
+            const caseCountStmt = databaseManager.getDatabase().prepare(`
                 SELECT COUNT(*) as case_count 
                 FROM case_evaluations 
                 WHERE evaluation_id = ? AND case_id IS NOT NULL AND case_id != '' AND deleted_at IS NULL
@@ -330,7 +330,7 @@ class EvaluationService {
     // Case Evaluation Methods
     getCasesByEvaluationId(evaluationId: number): CaseEvaluation[] {
         try {
-            const stmt = db.prepare(`
+            const stmt = databaseManager.getDatabase().prepare(`
                 SELECT * FROM case_evaluations 
                 WHERE evaluation_id = ? AND deleted_at IS NULL
                 ORDER BY case_number ASC
@@ -345,7 +345,7 @@ class EvaluationService {
     // Create default 7 cases for new evaluation
     private createDefaultCases(evaluationId: number): void {
         try {
-            const stmt = db.prepare(`
+            const stmt = databaseManager.getDatabase().prepare(`
                 INSERT INTO case_evaluations (evaluation_id, case_number)
                 VALUES (?, ?)
             `);
@@ -364,7 +364,7 @@ class EvaluationService {
         try {
             // Check if case_id already exists for this evaluation (excluding deleted cases)
             if (caseData.case_id) {
-                const existingCaseStmt = db.prepare(`
+                const existingCaseStmt = databaseManager.getDatabase().prepare(`
                     SELECT id FROM case_evaluations 
                     WHERE evaluation_id = ? AND case_id = ? AND deleted_at IS NULL
                 `);
@@ -376,7 +376,7 @@ class EvaluationService {
             }
 
             // Get the next case number by finding the highest case_number for this evaluation
-            const maxCaseNumberStmt = db.prepare(`
+            const maxCaseNumberStmt = databaseManager.getDatabase().prepare(`
                 SELECT COALESCE(MAX(case_number), 0) as max_case_number 
                 FROM case_evaluations 
                 WHERE evaluation_id = ?
@@ -384,7 +384,7 @@ class EvaluationService {
             const result = maxCaseNumberStmt.get(evaluationId) as { max_case_number: number };
             const nextCaseNumber = result.max_case_number + 1;
 
-            const stmt = db.prepare(`
+            const stmt = databaseManager.getDatabase().prepare(`
                 INSERT INTO case_evaluations (
                     evaluation_id, case_number, case_id, kb_potential, article_linked,
                     article_improved, improvement_opportunity, article_created,
@@ -480,7 +480,7 @@ class EvaluationService {
             }
 
             params.push(caseId);
-            const stmt = db.prepare(`
+            const stmt = databaseManager.getDatabase().prepare(`
                 UPDATE case_evaluations 
                 SET ${updates.join(', ')}
                 WHERE id = ?
@@ -512,7 +512,7 @@ class EvaluationService {
                 throw new Error('Case is already deleted');
             }
 
-            const stmt = db.prepare(`
+            const stmt = databaseManager.getDatabase().prepare(`
                 UPDATE case_evaluations 
                 SET deleted_at = CURRENT_TIMESTAMP
                 WHERE id = ?
@@ -530,7 +530,7 @@ class EvaluationService {
     // Get case by ID
     getCaseById(id: number): CaseEvaluation | null {
         try {
-            const stmt = db.prepare('SELECT * FROM case_evaluations WHERE id = ?');
+            const stmt = databaseManager.getDatabase().prepare('SELECT * FROM case_evaluations WHERE id = ?');
             return stmt.get(id) as CaseEvaluation | null;
         } catch (error) {
             logger.error('Error getting case by ID:', error);
@@ -541,7 +541,7 @@ class EvaluationService {
     // Get empty cases from evaluation (cases without case_id that can be populated)
     getEmptyCases(evaluationId: number): CaseEvaluation[] {
         try {
-            const stmt = db.prepare(`
+            const stmt = databaseManager.getDatabase().prepare(`
                 SELECT * FROM case_evaluations 
                 WHERE evaluation_id = ? AND (case_id IS NULL OR case_id = '') AND deleted_at IS NULL
                 ORDER BY case_number ASC
@@ -560,7 +560,7 @@ class EvaluationService {
                 return { exists: false };
             }
 
-            const stmt = db.prepare(`
+            const stmt = databaseManager.getDatabase().prepare(`
                 SELECT 
                     ce.id,
                     ce.evaluation_id,
@@ -707,7 +707,7 @@ class EvaluationService {
                 params.push(...filters.months.map(m => m.toString().padStart(2, '0')));
             }
 
-            const stmt = db.prepare(query);
+            const stmt = databaseManager.getDatabase().prepare(query);
             const result = stmt.get(...params) as any;
 
             // Calculate percentages

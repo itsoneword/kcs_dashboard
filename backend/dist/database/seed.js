@@ -53,10 +53,10 @@ function parseAccounts(filePath) {
 function seedUsers() {
     const filePath = path_1.default.resolve(__dirname, '../../../accounts_list.md');
     const sections = parseAccounts(filePath);
-    const insert = database_1.db.prepare(`INSERT OR IGNORE INTO users 
+    const insert = database_1.databaseManager.getDatabase().prepare(`INSERT OR IGNORE INTO users 
       (email, password_hash, name, is_coach, is_lead, is_admin, is_manager) 
      VALUES (?, ?, ?, ?, ?, ?, ?)`);
-    const check = database_1.db.prepare(`SELECT id FROM users WHERE email = ?`);
+    const check = database_1.databaseManager.getDatabase().prepare(`SELECT id FROM users WHERE email = ?`);
     const accounts = [];
     for (const role of ['coaches', 'leads', 'managers', 'admins']) {
         for (const fullName of sections[role]) {

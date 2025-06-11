@@ -9,7 +9,6 @@
   import SearchableSelect from "$lib/components/SearchableSelect.svelte";
   import EvaluationFilters from "./components/EvaluationFilters.svelte";
   import ExcelImportModal from "$lib/components/evaluations/ExcelImportModal.svelte";
-  import Header from "$lib/components/Header.svelte";
 
   let user: User | null = null;
 
@@ -453,8 +452,6 @@
   </div>
 {:else}
   <div class="min-h-screen bg-gray-50">
-    <Header title="Evaluations" {user} />
-
     <div class="container mx-auto px-4 py-8">
       <!-- Header with Actions -->
       <div class="flex justify-between items-center mb-6">

@@ -12,7 +12,7 @@
 
     async function handleLogout() {
         await authStore.logout();
-        goto("/auth/login");
+        goto("/login");
     }
 
     function getUserRoles(user: User): string[] {

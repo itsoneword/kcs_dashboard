@@ -1,5 +1,5 @@
 import bcrypt from 'bcryptjs';
-import { db } from '../database/database';
+import databaseManager from '../database/database';
 
 interface ResetPasswordOptions {
     email: string;
@@ -14,7 +14,7 @@ export async function resetUserPassword(options: ResetPasswordOptions): Promise<
         const normalizedEmail = email.toLowerCase().trim();
 
         // Check if user exists
-        const user = db.prepare('SELECT id, email FROM users WHERE LOWER(email) = ? AND deleted_at IS NULL').get(normalizedEmail) as { id: number; email: string } | undefined;
+        const user = databaseManager.getDatabase().prepare('SELECT id, email FROM users WHERE LOWER(email) = ? AND deleted_at IS NULL').get(normalizedEmail) as { id: number; email: string } | undefined;
 
         if (!user) {
             console.error(`User with email ${email} not found`);
@@ -25,7 +25,7 @@ export async function resetUserPassword(options: ResetPasswordOptions): Promise<
         const passwordHash = bcrypt.hashSync(newPassword, 12);
 
         // Update the password using the actual email from database
-        const updateStmt = db.prepare('UPDATE users SET password_hash = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?');
+        const updateStmt = databaseManager.getDatabase().prepare('UPDATE users SET password_hash = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?');
         const result = updateStmt.run(passwordHash, user.id);
 
         if (result.changes > 0) {

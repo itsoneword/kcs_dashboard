@@ -1,7 +1,7 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import databaseManager, { db } from '../database/database';
-import { User, LoginRequest, CreateUserRequest } from '../types';
+import databaseManager from '../database/database';
+import type { User, LoginRequest, CreateUserRequest } from '../types';
 import logger, { logUserAction } from '../utils/logger';
 
 export class AuthService {
@@ -23,7 +23,7 @@ export class AuthService {
 
             // Use retry logic for database operations
             const user = databaseManager.executeWithRetry(() => {
-                const stmt = db.prepare('SELECT * FROM users WHERE LOWER(email) = ? AND deleted_at IS NULL');
+                const stmt = databaseManager.getDatabase().prepare('SELECT * FROM users WHERE LOWER(email) = ? AND deleted_at IS NULL');
                 return stmt.get(normalizedEmail) as User | undefined;
             });
 
@@ -76,7 +76,7 @@ export class AuthService {
             // Use retry logic for database operations
             const result = databaseManager.executeWithRetry(() => {
                 // Check if user already exists (case-insensitive)
-                const existingUser = db.prepare('SELECT id FROM users WHERE LOWER(email) = ? AND deleted_at IS NULL').get(normalizedEmail);
+                const existingUser = databaseManager.getDatabase().prepare('SELECT id FROM users WHERE LOWER(email) = ? AND deleted_at IS NULL').get(normalizedEmail);
                 if (existingUser) {
                     throw new Error('User already exists');
                 }
@@ -85,7 +85,7 @@ export class AuthService {
                 const passwordHash = bcrypt.hashSync(password, 12);
 
                 // Check if this is the first user (make them admin)
-                const userCount = db.prepare('SELECT COUNT(*) as count FROM users WHERE deleted_at IS NULL').get() as { count: number };
+                const userCount = databaseManager.getDatabase().prepare('SELECT COUNT(*) as count FROM users WHERE deleted_at IS NULL').get() as { count: number };
                 const isFirstUser = userCount.count === 0;
 
                 // Set role flags based on the role parameter
@@ -108,7 +108,7 @@ export class AuthService {
                 }
 
                 // Insert new user
-                const insertStmt = db.prepare(`
+                const insertStmt = databaseManager.getDatabase().prepare(`
                     INSERT INTO users (email, password_hash, name, is_admin, is_coach, is_lead, is_manager)
                     VALUES (?, ?, ?, ?, ?, ?, ?)
                 `);
@@ -116,7 +116,7 @@ export class AuthService {
                 const insertResult = insertStmt.run(normalizedEmail, passwordHash, name, is_admin, is_coach, is_lead, is_manager);
 
                 // Get the created user
-                const newUser = db.prepare('SELECT * FROM users WHERE id = ?').get(insertResult.lastInsertRowid) as User;
+                const newUser = databaseManager.getDatabase().prepare('SELECT * FROM users WHERE id = ?').get(insertResult.lastInsertRowid) as User;
 
                 return newUser;
             });
@@ -148,7 +148,7 @@ export class AuthService {
 
             // Get fresh user data from database with retry logic
             const user = databaseManager.executeWithRetry(() => {
-                const stmt = db.prepare('SELECT * FROM users WHERE id = ? AND deleted_at IS NULL');
+                const stmt = databaseManager.getDatabase().prepare('SELECT * FROM users WHERE id = ? AND deleted_at IS NULL');
                 return stmt.get(decoded.userId) as User | undefined;
             });
 
@@ -186,7 +186,7 @@ export class AuthService {
     // Get user by ID
     getUserById(id: number): User | null {
         try {
-            const user = db.prepare('SELECT * FROM users WHERE id = ?').get(id) as User | undefined;
+            const user = databaseManager.getDatabase().prepare('SELECT * FROM users WHERE id = ?').get(id) as User | undefined;
             if (!user) return null;
 
             // Remove password hash
@@ -202,7 +202,7 @@ export class AuthService {
     async updateUserRoles(adminId: number, targetUserId: number, roles: { is_coach?: boolean; is_lead?: boolean; is_admin?: boolean; is_manager?: boolean }): Promise<User> {
         try {
             // Get current user data for logging
-            const currentUser = db.prepare('SELECT is_coach, is_lead, is_admin, is_manager FROM users WHERE id = ?').get(targetUserId);
+            const currentUser = databaseManager.getDatabase().prepare('SELECT is_coach, is_lead, is_admin, is_manager FROM users WHERE id = ?').get(targetUserId);
 
             // Prevent admin from removing their own admin permissions
             if (adminId === targetUserId && roles.is_admin === false) {
@@ -236,7 +236,7 @@ export class AuthService {
 
             values.push(targetUserId);
 
-            const updateStmt = db.prepare(`
+            const updateStmt = databaseManager.getDatabase().prepare(`
         UPDATE users 
         SET ${updates.join(', ')}
         WHERE id = ?
@@ -264,7 +264,7 @@ export class AuthService {
     // Get all users (admin only) - excludes soft deleted users
     getAllUsers(): User[] {
         try {
-            const users = db.prepare('SELECT * FROM users WHERE deleted_at IS NULL ORDER BY created_at DESC').all() as User[];
+            const users = databaseManager.getDatabase().prepare('SELECT * FROM users WHERE deleted_at IS NULL ORDER BY created_at DESC').all() as User[];
 
             // Remove password hashes
             return users.map(user => {
@@ -287,7 +287,7 @@ export class AuthService {
             }
 
             // Check if user exists and is not already deleted
-            const user = db.prepare('SELECT id, name, email, deleted_at FROM users WHERE id = ?').get(targetUserId) as any;
+            const user = databaseManager.getDatabase().prepare('SELECT id, name, email, deleted_at FROM users WHERE id = ?').get(targetUserId) as any;
             if (!user) {
                 throw new Error('User not found');
             }
@@ -296,7 +296,7 @@ export class AuthService {
             }
 
             // Soft delete the user
-            const deleteStmt = db.prepare('UPDATE users SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?');
+            const deleteStmt = databaseManager.getDatabase().prepare('UPDATE users SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?');
             deleteStmt.run(targetUserId);
 
             // Log user deletion

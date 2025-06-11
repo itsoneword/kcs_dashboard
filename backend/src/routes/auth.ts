@@ -5,7 +5,7 @@ import { authenticateToken, requireAdmin, requireAnyRole } from '../middleware/a
 import logger, { logUserAction } from '../utils/logger';
 import Joi from 'joi';
 import bcrypt from 'bcryptjs';
-import { db } from '../database/database';
+import databaseManager from '../database/database';
 
 const router = Router();
 
@@ -184,7 +184,7 @@ router.post('/users/:id/password', authenticateToken, async (req: AuthRequest, r
 
         // Update password
         const passwordHash = bcrypt.hashSync(newPassword, 12);
-        db.prepare('UPDATE users SET password_hash = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+        databaseManager.getDatabase().prepare('UPDATE users SET password_hash = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
             .run(passwordHash, targetUserId);
 
         // Log password change

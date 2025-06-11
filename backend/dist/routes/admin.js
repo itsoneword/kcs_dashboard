@@ -78,15 +78,15 @@ router.get('/database/backups', auth_1.authenticateToken, auth_1.requireAdmin, a
         const files = fs_1.default.readdirSync(backupDir)
             .filter(file => file.endsWith('.db'))
             .map(file => {
-            const filePath = path_1.default.join(backupDir, file);
-            const stats = fs_1.default.statSync(filePath);
-            return {
-                filename: file,
-                path: filePath,
-                size: stats.size,
-                created: stats.mtime
-            };
-        })
+                const filePath = path_1.default.join(backupDir, file);
+                const stats = fs_1.default.statSync(filePath);
+                return {
+                    filename: file,
+                    path: filePath,
+                    size: stats.size,
+                    created: stats.mtime
+                };
+            })
             .sort((a, b) => b.created.getTime() - a.created.getTime()); // Sort by newest first
         res.json({ backups: files });
     }
@@ -100,21 +100,21 @@ router.get('/database/schema', auth_1.authenticateToken, auth_1.requireAdmin, as
     try {
         const db = database_1.default.getDatabase();
         // Get table information
-        const tables = db.prepare(`
+        const tables = databaseManager.getDatabase().prepare(`
             SELECT name, sql 
             FROM sqlite_master 
             WHERE type='table' AND name NOT LIKE 'sqlite_%'
             ORDER BY name
         `).all();
         // Get index information
-        const indexes = db.prepare(`
+        const indexes = databaseManager.getDatabase().prepare(`
             SELECT name, sql, tbl_name
             FROM sqlite_master 
             WHERE type='index' AND name NOT LIKE 'sqlite_%'
             ORDER BY tbl_name, name
         `).all();
         // Get trigger information
-        const triggers = db.prepare(`
+        const triggers = databaseManager.getDatabase().prepare(`
             SELECT name, sql, tbl_name
             FROM sqlite_master 
             WHERE type='trigger'
@@ -156,18 +156,18 @@ router.get('/database/migrations', auth_1.authenticateToken, auth_1.requireAdmin
             const files = fs_1.default.readdirSync(migrationsDir)
                 .filter(file => file.endsWith('.sql'))
                 .map(file => {
-                const filePath = path_1.default.join(migrationsDir, file);
-                const stats = fs_1.default.statSync(filePath);
-                const content = fs_1.default.readFileSync(filePath, 'utf8');
-                return {
-                    filename: file,
-                    path: filePath,
-                    size: stats.size,
-                    modified: stats.mtime,
-                    content: content.substring(0, 500) + (content.length > 500 ? '...' : ''), // Preview
-                    type: 'migration'
-                };
-            })
+                    const filePath = path_1.default.join(migrationsDir, file);
+                    const stats = fs_1.default.statSync(filePath);
+                    const content = fs_1.default.readFileSync(filePath, 'utf8');
+                    return {
+                        filename: file,
+                        path: filePath,
+                        size: stats.size,
+                        modified: stats.mtime,
+                        content: content.substring(0, 500) + (content.length > 500 ? '...' : ''), // Preview
+                        type: 'migration'
+                    };
+                })
                 .sort((a, b) => a.filename.localeCompare(b.filename));
             migrations.push(...files);
         }
@@ -200,11 +200,11 @@ router.post('/database/execute-sql', auth_1.authenticateToken, auth_1.requireAdm
         let result;
         if (upperSQL.startsWith('SELECT')) {
             // For SELECT queries, return the results
-            result = db.prepare(sql).all();
+            result = databaseManager.getDatabase().prepare(sql).all();
         }
         else {
             // For other queries, return execution info
-            const info = db.prepare(sql).run();
+            const info = databaseManager.getDatabase().prepare(sql).run();
             result = {
                 changes: info.changes,
                 lastInsertRowid: info.lastInsertRowid

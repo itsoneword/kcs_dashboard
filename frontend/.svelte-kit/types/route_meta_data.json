@@ -6,6 +6,9 @@
 	"/admin": [
 		"src/routes/+layout.ts"
 	],
+	"/admin/db-management": [
+		"src/routes/+layout.ts"
+	],
 	"/coach": [
 		"src/routes/+layout.ts"
 	],

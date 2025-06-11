@@ -154,6 +154,38 @@ class DatabaseManager {
         }
     }
 
+    public async replaceDatabase(newDbFilePath: string): Promise<void> {
+        if (!fs.existsSync(newDbFilePath)) {
+            throw new Error(`Replacement database file not found at: ${newDbFilePath}`);
+        }
+
+        const currentDbPath = this.dbPath;
+        logger.warn(`Attempting to replace database '${currentDbPath}' with '${newDbFilePath}'`);
+
+        // Close the current database connection
+        this.close();
+
+        try {
+            // Replace the current database file with the new one
+            fs.copyFileSync(newDbFilePath, currentDbPath);
+            logger.info(`Successfully copied '${newDbFilePath}' to '${currentDbPath}'`);
+
+            // Delete the temporary uploaded file
+            fs.unlinkSync(newDbFilePath);
+            logger.info(`Removed temporary file: ${newDbFilePath}`);
+
+        } catch (error) {
+            logger.error('Failed to replace database file:', error);
+            // Attempt to re-establish the old connection if replacement fails
+            this.initializeDatabase();
+            throw error;
+        }
+
+        // Re-initialize the database connection with the new file
+        this.initializeDatabase();
+        logger.info(`Database re-initialized with new file at: ${currentDbPath}`);
+    }
+
     public updateDatabasePath(newDbPath: string): void {
         let resolvedNewDbPath = newDbPath;
         // For paths provided by admin, if not absolute, resolve them from a sensible project root or designated data directory.
@@ -181,5 +213,4 @@ class DatabaseManager {
 // Create singleton instance
 const databaseManager = new DatabaseManager();
 
-export default databaseManager;
-export const db: Database.Database = databaseManager.getDatabase(); 
+export default databaseManager; 
